@@ -1,0 +1,126 @@
+"""
+graph.py — LangGraph agent graph for TradeMate.
+
+Graph topology
+──────────────
+    START ──► retrieve ──► generate ──► END
+
+• retrieve  — embeds the latest user message, queries Neo4j, and writes the
+              text results into state["context"].
+• generate  — injects the system prompt (with context) and calls ChatOpenAI,
+              appending the assistant reply to state["messages"].
+
+The compiled graph is a module-level singleton so it is built only once per
+worker process.
+"""
+
+import logging
+import os
+
+from dotenv import load_dotenv
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from agent.prompts import SYSTEM_PROMPT
+from agent.state import AgentState
+from agent.tools import ensure_vector_index, retrieve_trade_context
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# ── LLM singleton ──────────────────────────────────────────────────────────────
+
+
+def _build_llm() -> ChatOpenAI:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise EnvironmentError("OPENAI_API_KEY must be set in .env")
+    return ChatOpenAI(
+        model="gpt-4o-mini",
+        openai_api_key=api_key,
+        streaming=True,
+        temperature=0.2,
+    )
+
+
+_llm: ChatOpenAI | None = None
+
+
+def _get_llm() -> ChatOpenAI:
+    global _llm
+    if _llm is None:
+        _llm = _build_llm()
+    return _llm
+
+
+# ── graph nodes ────────────────────────────────────────────────────────────────
+
+
+def retrieve_node(state: AgentState) -> dict:
+    """
+    Pull the latest human message from the conversation, embed it, and
+    retrieve the top-k matching HS code records from Neo4j.
+
+    Returns a partial state update: {"context": <retrieved text>}.
+    """
+    # The last message is always the current user turn (added by the route).
+    last_msg: BaseMessage = state["messages"][-1]
+    query: str = last_msg.content if isinstance(last_msg.content, str) else ""
+
+    context = retrieve_trade_context(query)
+    return {"context": context}
+
+
+def generate_node(state: AgentState) -> dict:
+    """
+    Build a prompt from the system message + retrieved context + full
+    conversation history, then call the LLM.
+
+    Returns a partial state update: {"messages": [<assistant reply>]}.
+    The add_messages reducer in AgentState will append the reply.
+    """
+    llm = _get_llm()
+    context = state.get("context") or "No relevant trade data was found in the knowledge base."
+
+    system_msg = SystemMessage(content=SYSTEM_PROMPT.format(context=context))
+    prompt_messages = [system_msg] + list(state["messages"])
+
+    response = llm.invoke(prompt_messages)
+    return {"messages": [response]}
+
+
+# ── graph assembly ─────────────────────────────────────────────────────────────
+
+
+def _build_graph():
+    builder = StateGraph(AgentState)
+
+    builder.add_node("retrieve", retrieve_node)
+    builder.add_node("generate", generate_node)
+
+    builder.add_edge(START, "retrieve")
+    builder.add_edge("retrieve", "generate")
+    builder.add_edge("generate", END)
+
+    return builder.compile()
+
+
+# ── singleton accessor ─────────────────────────────────────────────────────────
+
+_compiled_graph = None
+
+
+def get_graph():
+    """
+    Return the compiled LangGraph agent.  On the first call the Neo4j vector
+    index is verified / created and the graph is compiled.
+    """
+    global _compiled_graph
+    if _compiled_graph is None:
+        logger.info("Initialising TradeMate agent graph …")
+        ensure_vector_index()
+        _compiled_graph = _build_graph()
+        logger.info("Agent graph ready.")
+    return _compiled_graph

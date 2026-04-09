@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### v3.0.1 - 04/09/2026
+#### Fix
+- Onbording `broker` enum problem resolved
+
 ### v3.0.0 - 04/09/2026
 #### Added
 - Made a frontend for trademate chatbot and implemented 3 layer api architecture

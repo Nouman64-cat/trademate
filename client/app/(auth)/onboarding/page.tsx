@@ -11,9 +11,7 @@ import { cn } from "@/lib/cn";
 const TRADE_ROLES: { value: TradeRole; label: string }[] = [
   { value: "importer", label: "Importer" },
   { value: "exporter", label: "Exporter" },
-  { value: "trader", label: "Trader" },
-  { value: "broker", label: "Broker" },
-  { value: "analyst", label: "Market Analyst" },
+  { value: "both", label: "Both (Importer & Exporter)" },
 ];
 
 const USER_TYPES = [

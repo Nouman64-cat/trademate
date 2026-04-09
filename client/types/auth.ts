@@ -12,7 +12,7 @@ export interface LoginRequest {
   password: string;
 }
 
-export type TradeRole = "importer" | "exporter" | "trader" | "broker" | "analyst";
+export type TradeRole = "importer" | "exporter" | "both";
 
 export interface OnboardingRequest {
   trade_role: TradeRole;

@@ -1,9 +1,10 @@
 """
-ingest.py — Idempotent knowledge-graph ingestion pipeline for TradeMate.
+ingest_pk.py — Idempotent knowledge-graph ingestion pipeline for TradeMate.
+             Every node is created with an additional :PK label.
 
 Run:
     cd knowledge_graph
-    python ingest.py
+    python ingest_pk.py
 
 All leaf-node steps use UNWIND batching (500 rows per transaction) to minimise
 network round-trips to Neo4j Aura.  Re-running is safe — every write uses MERGE.
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-CSV_DIR = Path(__file__).parent / "data"
+CSV_DIR = Path(__file__).parent / "data/PK-PCT"
 
 PCT_CSV        = CSV_DIR / "pct codes with hierarchy.csv"
 TARIFFS_CSV    = CSV_DIR / "tariffs.csv"
@@ -119,23 +120,23 @@ def _build_embedding_text(row: pd.Series) -> str:
 
 _HIERARCHY_CYPHER = """
 UNWIND $batch AS row
-MERGE (ch:Chapter {code: row.chapter_code})
+MERGE (ch:Chapter:PK {code: row.chapter_code})
   ON CREATE SET ch.description = row.chapter_desc
   ON MATCH  SET ch.description = row.chapter_desc
 
-MERGE (sc:SubChapter {code: row.subchapter_code})
+MERGE (sc:SubChapter:PK {code: row.subchapter_code})
   ON CREATE SET sc.description = row.subchapter_desc
   ON MATCH  SET sc.description = row.subchapter_desc
 
-MERGE (hd:Heading {code: row.heading_code})
+MERGE (hd:Heading:PK {code: row.heading_code})
   ON CREATE SET hd.description = row.heading_desc
   ON MATCH  SET hd.description = row.heading_desc
 
-MERGE (sh:SubHeading {code: row.subheading_code})
+MERGE (sh:SubHeading:PK {code: row.subheading_code})
   ON CREATE SET sh.description = row.subheading_desc
   ON MATCH  SET sh.description = row.subheading_desc
 
-MERGE (hs:HSCode {code: row.hs_code})
+MERGE (hs:HSCode:PK {code: row.hs_code})
   ON CREATE SET hs.description = row.hs_desc,
                 hs.full_label  = row.full_label,
                 hs.embedding   = row.embedding
@@ -208,8 +209,8 @@ DUTY_TYPES = {
 
 _TARIFF_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (t:Tariff {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (t:Tariff:PK {uid: row.uid})
   ON CREATE SET t.hs_code    = row.hs_code,
                 t.duty_type  = row.duty_type,
                 t.duty_name  = row.duty_name,
@@ -262,8 +263,8 @@ def ingest_tariffs(driver) -> None:
 
 _CESS_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (c:Cess {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (c:Cess:PK {uid: row.uid})
   ON CREATE SET c.hs_code          = row.hs_code,
                 c.province         = row.province,
                 c.cess_description = row.cess_description,
@@ -316,8 +317,8 @@ def ingest_cess(driver) -> None:
 
 _EXEMPTION_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (e:Exemption {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (e:Exemption:PK {uid: row.uid})
   ON CREATE SET e.hs_code        = row.hs_code,
                 e.exemption_type = row.exemption_type,
                 e.exemption_desc = row.exemption_desc,
@@ -375,8 +376,8 @@ def ingest_exemptions(driver) -> None:
 
 _ANTIDUMP_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (a:AntiDumpingDuty {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (a:AntiDumpingDuty:PK {uid: row.uid})
   ON CREATE SET a.hs_code    = row.hs_code,
                 a.exporter   = row.exporter,
                 a.rate       = row.rate,
@@ -434,8 +435,8 @@ def ingest_antidump(driver) -> None:
 
 _PROCEDURE_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (p:Procedure {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (p:Procedure:PK {uid: row.uid})
   ON CREATE SET p.hs_code     = row.hs_code,
                 p.name        = row.name,
                 p.description = row.description,
@@ -483,8 +484,8 @@ def ingest_procedures(driver) -> None:
 
 _MEASURE_CYPHER = """
 UNWIND $batch AS row
-MATCH (hs:HSCode {code: row.hs_code})
-MERGE (m:Measure {uid: row.uid})
+MATCH (hs:HSCode:PK {code: row.hs_code})
+MERGE (m:Measure:PK {uid: row.uid})
   ON CREATE SET m.hs_code     = row.hs_code,
                 m.name        = row.name,
                 m.type        = row.type,
@@ -542,7 +543,7 @@ def ingest_measures(driver) -> None:
 
 def main() -> None:
     logger.info("╔══════════════════════════════════════════════════════╗")
-    logger.info("║  TradeMate Knowledge Graph — Ingestion Pipeline      ║")
+    logger.info("║  TradeMate Knowledge Graph — Ingestion Pipeline (PK) ║")
     logger.info("╚══════════════════════════════════════════════════════╝")
 
     driver = get_driver()

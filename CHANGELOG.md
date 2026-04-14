@@ -1,5 +1,17 @@
 # CHANGELOG
 
+### v4.1.0 4/15/2026
+#### Added
+-Shifted to Neo4j's Docker image because of the free tier's limitations.
+
+### v4.0.0 4/15/2026
+#### Added
+- Made ingest-us.py that makes embeddings of US-HTS data and ingest that in Neo4j.
+
+### v3.0.2 4/15/2026
+#### Added
+- Scrapped the data of US-HTC manually and added all the csv files in the data directory.
+
 ### v3.0.1 - 04/09/2026
 #### Fix
 - Onbording `broker` enum problem resolved

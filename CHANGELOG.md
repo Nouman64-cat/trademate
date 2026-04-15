@@ -1,8 +1,14 @@
 # CHANGELOG
 
+
+### v5.0.0 4/15/2026
+#### Added 
+- Data Pipeline (Extraction,Embedding and Ingestion)
+
+
 ### v4.1.0 4/15/2026
 #### Added
--Shifted to Neo4j's Docker image because of the free tier's limitations.
+- Shifted to Neo4j's Docker image because of the free tier's limitations.
 
 ### v4.0.0 4/15/2026
 #### Added

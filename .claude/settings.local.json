@@ -20,7 +20,9 @@
       "Bash(curl -k -s \"https://tipp.gov.pk/index.php?r=tradeInfo/index\" -X POST -d \"CommoditySearchForm[searchType]=HSCODE&CommoditySearchForm[searchValue]=01&searchCommodity=Search\")",
       "Bash(curl -k -s \"https://tipp.gov.pk/index.php?r=tradeInfo/view&id=1\")",
       "Bash(curl -k -s \"https://tipp.gov.pk/index.php?r=tradeInfo/view&id=100\")",
-      "Bash(curl -k -s 'https://tipp.gov.pk/index.php?r=tradeInfo/view&id=__TRACKED_VAR__')"
+      "Bash(curl -k -s 'https://tipp.gov.pk/index.php?r=tradeInfo/view&id=__TRACKED_VAR__')",
+      "Bash(.venv/Scripts/python.exe --version)",
+      "Bash(.venv/Scripts/pip.exe list:*)"
     ]
   }
 }

@@ -29,9 +29,12 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-large"
     embedding_dimensions: int = 3072
 
-    # Pipeline tuning
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    # Pipeline tuning — semantic chunking
+    # breakpoint_threshold_type: "percentile" | "standard_deviation" | "interquartile"
+    # "percentile" with threshold=95 → split only at the 95th-percentile similarity
+    # distance, producing fewer but larger, more coherent chunks.
+    semantic_breakpoint_type: str = "percentile"
+    semantic_breakpoint_threshold: float = 95.0
     pinecone_upsert_batch: int = 100
 
 

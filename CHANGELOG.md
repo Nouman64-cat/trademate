@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### v5.0.1 4/15/2026
+#### Update
+
+- Changed Recursive Text Splitter to Semantic Chunking 
 
 ### v5.1.0 4/15/2026
 #### Added

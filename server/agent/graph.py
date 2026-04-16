@@ -65,11 +65,25 @@ def retrieve_node(state: AgentState) -> dict:
 
     Returns a partial state update: {"context": <retrieved text>}.
     """
-    # The last message is always the current user turn (added by the route).
     last_msg: BaseMessage = state["messages"][-1]
     query: str = last_msg.content if isinstance(last_msg.content, str) else ""
 
+    logger.info("━━━ [QUERY] %r", query[:120])
+    logger.info("━━━ [SOURCE 1/2] Querying Neo4j (Graph DB) …")
     context = retrieve_trade_context(query)
+
+    if context:
+        # Count how many records came back (each block is separated by ---)
+        record_count = context.count("HTS/HS Code")
+        pk_count = context.count("Source      : PK")
+        us_count = context.count("Source      : US")
+        logger.info(
+            "━━━ [NEO4J ✔] Returned %d record(s)  [PK: %d | US: %d]",
+            record_count, pk_count, us_count,
+        )
+    else:
+        logger.warning("━━━ [NEO4J ✘] No results returned from Neo4j.")
+
     return {"context": context}
 
 
@@ -85,7 +99,15 @@ def vector_search_node(state: AgentState) -> dict:
     last_msg: BaseMessage = state["messages"][-1]
     query: str = last_msg.content if isinstance(last_msg.content, str) else ""
 
+    logger.info("━━━ [SOURCE 2/2] Querying Pinecone (Vector DB) …")
     pinecone_context = retrieve_pinecone_context(query)
+
+    if pinecone_context:
+        chunk_count = pinecone_context.count("[Document ")
+        logger.info("━━━ [PINECONE ✔] Returned %d document chunk(s).", chunk_count)
+    else:
+        logger.warning("━━━ [PINECONE ✘] No results returned from Pinecone.")
+
     return {"pinecone_context": pinecone_context}
 
 
@@ -98,8 +120,25 @@ def generate_node(state: AgentState) -> dict:
     The add_messages reducer in AgentState will append the reply.
     """
     llm = _get_llm()
-    context = state.get("context") or "No relevant trade data was found in the knowledge base."
-    pinecone_context = state.get("pinecone_context") or "No relevant documents were found."
+    context = state.get("context") or ""
+    pinecone_context = state.get("pinecone_context") or ""
+
+    neo4j_hit = bool(context)
+    pinecone_hit = bool(pinecone_context)
+
+    if neo4j_hit and pinecone_hit:
+        sources_used = "Neo4j (Graph DB) + Pinecone (Vector DB)"
+    elif neo4j_hit:
+        sources_used = "Neo4j (Graph DB) only"
+    elif pinecone_hit:
+        sources_used = "Pinecone (Vector DB) only"
+    else:
+        sources_used = "None — LLM answering from training knowledge only"
+
+    logger.info("━━━ [GENERATE] Sources used → %s", sources_used)
+
+    context = context or "No relevant trade data was found in the knowledge base."
+    pinecone_context = pinecone_context or "No relevant documents were found."
 
     system_msg = SystemMessage(
         content=SYSTEM_PROMPT.format(context=context, pinecone_context=pinecone_context)
@@ -107,6 +146,7 @@ def generate_node(state: AgentState) -> dict:
     prompt_messages = [system_msg] + list(state["messages"])
 
     response = llm.invoke(prompt_messages)
+    logger.info("━━━ [DONE] Response generated.")
     return {"messages": [response]}
 
 

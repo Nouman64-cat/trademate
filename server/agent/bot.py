@@ -93,7 +93,6 @@ OPTIONAL MATCH (hs)-[:HAS_TARIFF]->(t:Tariff)
 OPTIONAL MATCH (hs)-[:HAS_CESS]->(c:Cess)
 OPTIONAL MATCH (hs)-[:HAS_EXEMPTION]->(ex:Exemption)
 OPTIONAL MATCH (hs)-[:REQUIRES_PROCEDURE]->(pr:Procedure)
-OPTIONAL MATCH (hs)-[:HAS_MEASURE]->(m:Measure)
 RETURN
     hs.code                                                              AS code,
     hs.description                                                       AS description,
@@ -103,8 +102,7 @@ RETURN
     collect(DISTINCT {province: c.province, import_rate: c.import_rate,
                       export_rate: c.export_rate})                       AS cess,
     collect(DISTINCT {description: ex.exemption_desc, rate: ex.rate})   AS exemptions,
-    collect(DISTINCT {name: pr.name, category: pr.category})            AS procedures,
-    collect(DISTINCT {name: m.name, type: m.measure_type})              AS measures
+    collect(DISTINCT {name: pr.name, category: pr.category})            AS procedures
 """
 
 _PK_VECTOR_CYPHER = f"""
@@ -116,7 +114,6 @@ OPTIONAL MATCH (hs)-[:HAS_TARIFF]->(t:Tariff)
 OPTIONAL MATCH (hs)-[:HAS_CESS]->(c:Cess)
 OPTIONAL MATCH (hs)-[:HAS_EXEMPTION]->(ex:Exemption)
 OPTIONAL MATCH (hs)-[:REQUIRES_PROCEDURE]->(pr:Procedure)
-OPTIONAL MATCH (hs)-[:HAS_MEASURE]->(m:Measure)
 RETURN
     hs.code                                                              AS code,
     hs.description                                                       AS description,
@@ -126,8 +123,7 @@ RETURN
     collect(DISTINCT {{province: c.province, import_rate: c.import_rate,
                       export_rate: c.export_rate}})                      AS cess,
     collect(DISTINCT {{description: ex.exemption_desc, rate: ex.rate}})  AS exemptions,
-    collect(DISTINCT {{name: pr.name, category: pr.category}})           AS procedures,
-    collect(DISTINCT {{name: m.name, type: m.measure_type}})             AS measures
+    collect(DISTINCT {{name: pr.name, category: pr.category}})           AS procedures
 ORDER BY score DESC
 """
 
@@ -225,6 +221,25 @@ def _get_embeddings() -> OpenAIEmbeddings:
 
 _driver     = None
 _embeddings: Optional[OpenAIEmbeddings] = None
+_pinecone_index = None
+
+_PINECONE_INDEX_NAME = "trademate-documents"
+
+
+def _get_pinecone_index():
+    """Return the shared Pinecone index singleton."""
+    global _pinecone_index  # noqa: PLW0603
+    if _pinecone_index is None:
+        from pinecone import Pinecone
+
+        api_key = os.getenv("PINECONE_API_KEY")
+        if not api_key:
+            raise EnvironmentError("PINECONE_API_KEY must be set in .env")
+
+        pc = Pinecone(api_key=api_key)
+        _pinecone_index = pc.Index(_PINECONE_INDEX_NAME)
+        logger.info("Pinecone index '%s' connected.", _PINECONE_INDEX_NAME)
+    return _pinecone_index
 
 
 # ── index setup ───────────────────────────────────────────────────────────────
@@ -309,12 +324,6 @@ def _format_pk_results(records: list[dict]) -> str:
             for p in procedures[:3]:
                 cat = f" [{p['category']}]" if p.get("category") else ""
                 lines.append(f"  • {p['name']}{cat}")
-
-        measures = [m for m in (r.get("measures") or []) if m.get("name")]
-        if measures:
-            lines.append("Trade Measures:")
-            for m in measures[:3]:
-                lines.append(f"  • {m.get('name', '')} ({m.get('type', '')})")
 
         blocks.append("\n".join(lines))
 
@@ -480,23 +489,25 @@ def search_pakistan_hs_data(query: str) -> str:
     query = query.strip()
     try:
         if _PK_CODE_RE.match(query):
-            # Fast path: exact code lookup — skip embedding call entirely
-            logger.info("PK tool: exact code lookup for '%s'", query)
+            logger.info("━━━ [NEO4J → PK] Exact code lookup: '%s'", query)
             records = _pk_code_lookup(query)
             if not records:
-                # Code not found — fall back to semantic search on the description
-                logger.info("PK code '%s' not found; falling back to vector search.", query)
+                logger.info("━━━ [NEO4J → PK] Code not found — falling back to vector search.")
                 records = _pk_vector_search(query)
+                logger.info("━━━ [NEO4J → PK] Vector search complete.")
         else:
-            logger.info("PK tool: vector search for '%s'", query[:80])
+            logger.info("━━━ [NEO4J → PK] Vector search: %r", query[:80])
             records = _pk_vector_search(query)
 
-        result = _format_pk_results(records)
-        logger.info("PK tool returned %d record(s).", len(records))
-        return result
+        if records:
+            logger.info("━━━ [NEO4J → PK ✔] Returned %d record(s) from Graph DB (Pakistan PCT).", len(records))
+        else:
+            logger.warning("━━━ [NEO4J → PK ✘] No results found in Pakistan PCT data.")
+
+        return _format_pk_results(records)
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("search_pakistan_hs_data failed: %s", exc)
+        logger.warning("━━━ [NEO4J → PK ✘] search_pakistan_hs_data failed: %s", exc)
         return (
             f"Pakistan HS data retrieval failed: {exc}. "
             "Please ensure Neo4j is running (docker start neo4j-trademate) "
@@ -528,26 +539,109 @@ def search_us_hs_data(query: str) -> str:
     query = query.strip()
     try:
         if _US_CODE_RE.match(query):
-            # Fast path: exact code lookup
-            logger.info("US tool: exact code lookup for '%s'", query)
+            logger.info("━━━ [NEO4J → US] Exact code lookup: '%s'", query)
             records = _us_code_lookup(query)
             if not records:
-                logger.info("US code '%s' not found; falling back to vector search.", query)
+                logger.info("━━━ [NEO4J → US] Code not found — falling back to vector search.")
                 records = _us_vector_search(query)
+                logger.info("━━━ [NEO4J → US] Vector search complete.")
         else:
-            logger.info("US tool: vector search for '%s'", query[:80])
+            logger.info("━━━ [NEO4J → US] Vector search: %r", query[:80])
             records = _us_vector_search(query)
 
-        result = _format_us_results(records)
-        logger.info("US tool returned %d record(s).", len(records))
-        return result
+        if records:
+            logger.info("━━━ [NEO4J → US ✔] Returned %d record(s) from Graph DB (US HTS).", len(records))
+        else:
+            logger.warning("━━━ [NEO4J → US ✘] No results found in US HTS data.")
+
+        return _format_us_results(records)
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("search_us_hs_data failed: %s", exc)
+        logger.warning("━━━ [NEO4J → US ✘] search_us_hs_data failed: %s", exc)
         return (
             f"US HTS data retrieval failed: {exc}. "
             "Please ensure Neo4j is running (docker start neo4j-trademate) "
             "and NEO4J_URI / credentials are correct in knowledge_graph/.env."
+        )
+
+
+class _DocSearchInput(BaseModel):
+    query: str = Field(
+        description=(
+            "The user's question to search in uploaded trade policy documents, "
+            "regulations, reports, and reference materials stored in Pinecone. "
+            "Use natural-language descriptions. Examples: 'SRO exemptions for textile', "
+            "'Pakistan trade policy 2024', 'WTO safeguard measures'."
+        )
+    )
+
+
+@tool("search_trade_documents", args_schema=_DocSearchInput)
+def search_trade_documents(query: str) -> str:
+    """
+    Search uploaded trade policy documents, regulations, and reports stored in
+    Pinecone (Vector DB).
+
+    Use this tool when the user asks about:
+    - Trade policies, agreements, or regulations (e.g. SROs, FTAs, WTO rules)
+    - Uploaded reference documents or reports
+    - General trade procedures, compliance requirements, or policy context
+    - Any question where background document context would help
+
+    This tool complements the Neo4j tools — it searches unstructured document
+    chunks rather than structured HS code / tariff data.
+
+    DO NOT use this as a substitute for search_pakistan_hs_data or
+    search_us_hs_data when the user wants specific duty rates or HS codes.
+    """
+    query = query.strip()
+    try:
+        logger.info("━━━ [PINECONE] Vector search: %r", query[:80])
+
+        embedding_model = _get_embeddings()
+        query_vector = embedding_model.embed_query(query)
+
+        index = _get_pinecone_index()
+        results = index.query(
+            vector=query_vector,
+            top_k=5,
+            include_metadata=True,
+        )
+
+        matches = results.get("matches", [])
+        if not matches:
+            logger.warning("━━━ [PINECONE ✘] No results found in document store.")
+            return "No relevant documents found in the document store for this query."
+
+        blocks: list[str] = []
+        for i, match in enumerate(matches, 1):
+            meta  = match.get("metadata", {})
+            score = match.get("score", 0)
+            text  = meta.get("text", "").strip()
+            source = meta.get("source", "unknown")
+            page   = meta.get("page", "")
+
+            if not text:
+                continue
+
+            header = f"[Document {i}] {source}"
+            if page != "":
+                header += f" (page {page})"
+            header += f" — relevance: {score:.4f}"
+            blocks.append(f"{header}\n{text}")
+
+        if not blocks:
+            logger.warning("━━━ [PINECONE ✘] Matches returned but all had empty text.")
+            return "No usable document content found."
+
+        logger.info("━━━ [PINECONE ✔] Returned %d document chunk(s) from Vector DB.", len(blocks))
+        return "\n\n---\n\n".join(blocks)
+
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("━━━ [PINECONE ✘] search_trade_documents failed: %s", exc)
+        return (
+            f"Document search failed: {exc}. "
+            "Please ensure PINECONE_API_KEY is set and the index exists."
         )
 
 
@@ -557,35 +651,46 @@ _BOT_SYSTEM_PROMPT = SystemMessage(content="""\
 You are TradeMate, an expert AI assistant specialising in international trade,
 Harmonized System (HS) codes, import/export regulations, and tariff schedules.
 
-You have access to two tools that query a local Neo4j knowledge graph:
+You have access to three tools:
 
-  1. search_pakistan_hs_data
+  1. search_pakistan_hs_data  [Neo4j — Graph DB]
      → Pakistan PCT (Pakistan Customs Tariff) database (:PK schema)
      → Star schema: HS codes connected to Tariff, Cess, Exemption,
        Procedure, and Measure nodes
      → Use for: CD/RD/ACD/FED/ST rates, provincial cess, SRO exemptions,
        customs procedures, NTMs
 
-  2. search_us_hs_data
+  2. search_us_hs_data  [Neo4j — Graph DB]
      → US Harmonized Tariff Schedule database (:US schema)
      → 11-level implicit hierarchy via HAS_CHILD relationships
      → Rates stored as properties: general_rate, special_rate, column_2_rate
      → Use for: US import duties, HTS classifications, US trade data
 
+  3. search_trade_documents  [Pinecone — Vector DB]
+     → Uploaded trade policy documents, regulations, and reports
+     → Use for: policy context, trade agreements, SRO documents,
+       compliance guidelines, any question needing document-level context
+     → Call this alongside the Neo4j tools for richer answers
+
 Rules you MUST follow
 ──────────────────────
-• ALWAYS call a tool before answering a question about specific duty rates
-  or HS/HTS codes. Never answer from training knowledge alone.
-• For cross-country comparisons, call BOTH tools (one per country).
+• ALWAYS call at least one tool for EVERY user question — no exceptions.
+  Never answer any trade question from training knowledge alone.
+• For ANY question about products, commodities, or goods:
+    - Call search_pakistan_hs_data to find PK tariff/HS data
+    - Call search_us_hs_data to find US HTS data
+    - Call search_trade_documents to find relevant policy documents
+• For tariff/duty/rate questions: call search_pakistan_hs_data and/or
+  search_us_hs_data depending on the country mentioned.
+• For policy, regulation, SRO, or document questions: call search_trade_documents.
+• For general "what is X" or "tell me about X" trade questions: call
+  search_trade_documents AND the relevant Neo4j tools.
+• For cross-country comparisons: call BOTH Neo4j tools.
 • ONLY cite HS codes and duty rates that appear verbatim in tool results.
   Never invent, estimate, interpolate, or recall rates from training data.
-• If a tool returns no data, tell the user clearly and suggest they rephrase
-  with a more specific product name, HS code, or HTS heading.
+• If all tools return no data, say so clearly and suggest a more specific query.
 • Label every rate you quote with its source country and duty type.
 • Use bullet points or tables when listing multiple rates — clarity matters.
-• For general procedural questions (how customs clearance works, what an
-  SRO is, etc.) you may answer from knowledge, but label it as general
-  guidance, not authoritative PCT or HTS data.
 """)
 
 # ── LLM singleton ─────────────────────────────────────────────────────────────
@@ -611,7 +716,7 @@ _llm: Optional[ChatOpenAI] = None
 
 # ── ReAct agent ───────────────────────────────────────────────────────────────
 
-_TOOLS = [search_pakistan_hs_data, search_us_hs_data]
+_TOOLS = [search_pakistan_hs_data, search_us_hs_data, search_trade_documents]
 
 
 def _build_bot():

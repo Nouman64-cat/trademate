@@ -90,14 +90,21 @@ async def _stream_agent(
 
         messages.append(HumanMessage(content=message))
 
-        # The ReAct agent only needs the messages list in its state.
-        # Tool results are appended automatically by the LangGraph tool_node.
         initial_state = {"messages": messages}
+
+        tools_called: list[str] = []
 
         async for chunk, metadata in graph.astream(
             initial_state,
             stream_mode="messages",
         ):
+            # Track which tools were invoked
+            node = metadata.get("langgraph_node", "")
+            if node == "tools" and hasattr(chunk, "name") and chunk.name:
+                if chunk.name not in tools_called:
+                    tools_called.append(chunk.name)
+                    logger.info("━━━ [TOOL CALL] → %s", chunk.name)
+
             # Only forward AI token chunks that carry text content.
             if (
                 isinstance(chunk, AIMessageChunk)
@@ -112,6 +119,13 @@ async def _stream_agent(
                     }
                 )
 
+        if tools_called:
+            logger.info("━━━ [DONE]    Sources used: %s", ", ".join(tools_called))
+        else:
+            logger.warning(
+                "━━━ [DONE]    ⚠ No tools called — LLM answered from training knowledge only. "
+                "Consider rephrasing with a specific product, HS code, or tariff question."
+            )
         yield _sse({"type": "done", "conversation_id": conversation_id})
 
     except Exception as exc:
@@ -143,11 +157,15 @@ async def chat(
     history = body.history or []
 
     logger.info(
-        "Chat request — user_id=%d  conversation_id=%s  history_turns=%d",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    logger.info(
+        "━━━ [REQUEST] user_id=%d  conv=%s  turns=%d",
         user_id,
         conversation_id,
         len(history),
     )
+    logger.info("━━━ [QUERY]   %r", body.message[:200])
 
     return StreamingResponse(
         _stream_agent(body.message, history, conversation_id),

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+
+### v5.0.3 4/16/2026
+#### Update
+
+- Created a tool for vector db and created logs for tools 
+
+
 ### v5.0.2 4/15/2026
 #### Update
 - Connected neo4j to answer queries to user. 

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str
     embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 3072
+    embedding_dimensions: int = 1536
 
     # Pipeline tuning — semantic chunking
     # breakpoint_threshold_type: "percentile" | "standard_deviation" | "interquartile"

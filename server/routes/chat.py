@@ -29,7 +29,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from langchain_core.messages import AIMessageChunk, HumanMessage
 
-from agent.graph import get_graph
+from agent.bot import get_bot
 from schemas.chat import ChatRequest
 from security.security import decode_access_token
 
@@ -76,7 +76,7 @@ async def _stream_agent(
     chunk so the frontend receives one SSE event per token.
     """
     try:
-        graph = get_graph()
+        graph = get_bot()
 
         # Build the full message list: history turns first, then the new user message.
         messages = []
@@ -90,7 +90,9 @@ async def _stream_agent(
 
         messages.append(HumanMessage(content=message))
 
-        initial_state = {"messages": messages, "context": "", "pinecone_context": ""}
+        # The ReAct agent only needs the messages list in its state.
+        # Tool results are appended automatically by the LangGraph tool_node.
+        initial_state = {"messages": messages}
 
         async for chunk, metadata in graph.astream(
             initial_state,

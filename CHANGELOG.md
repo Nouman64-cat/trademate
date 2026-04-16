@@ -1,13 +1,16 @@
 # CHANGELOG
 
+### v5.0.2 4/15/2026
+#### Update
+- Connected neo4j to answer queries to user. 
+
+
 ### v5.0.1 4/15/2026
 #### Update
-
 - Changed Recursive Text Splitter to Semantic Chunking 
 
 ### v5.1.0 4/15/2026
 #### Added
-
 - User Query to Vector db 
 
 ### v5.0.0 4/15/2026

@@ -19,8 +19,7 @@ app = FastAPI(title="TradeMate API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
+        "http://localhost:3000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -34,3 +33,8 @@ app.include_router(chat_router)
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to TradeMate API!"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

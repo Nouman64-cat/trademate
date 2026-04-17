@@ -4,6 +4,14 @@ import { useState, type KeyboardEvent, type FormEvent } from "react";
 import { ArrowUp, Square, Paperclip, Mic } from "lucide-react";
 import { useAutoResize } from "@/hooks/useAutoResize";
 import { cn } from "@/lib/cn";
+import { useAuthStore } from "@/stores/authStore";
+import dynamic from "next/dynamic";
+
+// VoiceModal uses Web Audio API — must be client-only
+const VoiceModal = dynamic(
+  () => import("./VoiceModal").then((m) => ({ default: m.VoiceModal })),
+  { ssr: false }
+);
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -13,6 +21,8 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, isStreaming, onStop }: ChatInputProps) {
   const [value, setValue] = useState("");
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const token = useAuthStore((s) => s.token) ?? "";
   const textareaRef = useAutoResize(value);
 
   const canSend = value.trim().length > 0 && !isStreaming;
@@ -78,7 +88,8 @@ export function ChatInput({ onSend, isStreaming, onStop }: ChatInputProps) {
               </button>
               <button
                 type="button"
-                aria-label="Voice input"
+                aria-label="Voice conversation"
+                onClick={() => setVoiceOpen(true)}
                 className={cn(
                   "h-8 w-8 rounded-lg inline-flex items-center justify-center",
                   "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300",
@@ -127,6 +138,10 @@ export function ChatInput({ onSend, isStreaming, onStop }: ChatInputProps) {
           TradeMate can make mistakes. Verify important financial information.
         </p>
       </div>
+
+      {voiceOpen && (
+        <VoiceModal token={token} onClose={() => setVoiceOpen(false)} />
+      )}
     </div>
   );
 }

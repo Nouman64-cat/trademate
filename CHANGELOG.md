@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### v6.0.0 - 04/17/2026
+#### Added
+- Voice Conversation feature of 60 seconds using the OpenAI Realtime API (gpt-realtime-mini)
+
 ### v5.3.0 - 04/17/2026
 #### Added
 - **Route Widget (UI):** Interactive maps built with React/Leaflet/CartoDB to visually plot international sea/air freight legs directly within the chat interface, containing interactive route cards and cost breakdowns.

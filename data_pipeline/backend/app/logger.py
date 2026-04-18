@@ -9,12 +9,11 @@ import sys
 
 
 def configure_logging() -> None:
-    """Call once at application startup."""
+    """Call once at application startup. Forces configuration and simple formatting."""
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-        datefmt="%H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        format="%(name)s: %(message)s",
+        force=True
     )
 
 

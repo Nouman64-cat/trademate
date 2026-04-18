@@ -1,0 +1,11 @@
+.serverless/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.example
+.git/
+.gitignore
+node_modules/
+README.md
+vendor/

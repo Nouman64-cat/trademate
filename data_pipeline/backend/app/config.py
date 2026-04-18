@@ -16,8 +16,8 @@ class Settings(BaseSettings):
 
     # AWS
     aws_s3_bucket_name: str
-    aws_access_key_id: str
-    aws_secret_access_key: str
+    aws_access_key_id_manual: str | None = None
+    aws_secret_access_key_manual: str | None = None
     aws_region: str = "us-east-1"
 
     # Pinecone

@@ -1,0 +1,43 @@
+service: trademate-research-pipeline
+
+provider:
+  name: aws
+  region: us-east-1
+  architecture: arm64 # Faster builds on Mac, matches Graviton performance
+  profile: zygotrix
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:ListBucket
+          Resource:
+            - arn:aws:s3:::${env:AWS_S3_BUCKET_NAME}
+            - arn:aws:s3:::${env:AWS_S3_BUCKET_NAME}/*
+  stage: ${opt:stage, 'dev'}
+  timeout: 300 # 5 minutes for research tasks
+  memorySize: 1024 # Increased for heavy AI/ML processing
+  ecr:
+    images:
+      trademate-img:
+        path: ./ # Points to Dockerfile in current directory
+  environment:
+    AWS_S3_BUCKET_NAME: ${env:AWS_S3_BUCKET_NAME}
+    PINECONE_API_KEY: ${env:PINECONE_API_KEY}
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY}
+    # These are picked up from the environment or .env file
+    # Ensure they are available in the shell or CI/CD context.
+
+functions:
+  researcher:
+    name: ${self:service}-${self:provider.stage}-researcher-img
+    image:
+      name: trademate-img
+    description: "Fetches and processes research data (TradeMate)"
+    events:
+      # Run once per hour (AWS cron: minute hour day-of-month month day-of-week year)
+      - schedule: cron(0 0/1 * * ? *)
+
+# No custom plugins needed for Docker deployment

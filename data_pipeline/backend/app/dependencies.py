@@ -6,6 +6,7 @@ lifetime of the process. Swap out any getter here to change the underlying
 provider without touching business logic.
 """
 
+import os
 from typing import Any
 
 import boto3
@@ -25,12 +26,18 @@ _pinecone_index: Any = None
 def get_s3():
     global _s3_client
     if _s3_client is None:
-        _s3_client = boto3.client(
-            "s3",
-            region_name=settings.aws_region,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-        )
+        client_kwargs = {
+            "region_name": settings.aws_region,
+        }
+        is_lambda = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+        if not is_lambda and settings.aws_access_key_id_manual and settings.aws_secret_access_key_manual:
+            client_kwargs["aws_access_key_id"] = settings.aws_access_key_id_manual
+            client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key_manual
+            logger.info("Initializing S3 client with explicit manual credentials.")
+        else:
+            logger.info("Initializing S3 client using IAM role/environment (forced in Lambda).")
+
+        _s3_client = boto3.client("s3", **client_kwargs)
     return _s3_client
 
 

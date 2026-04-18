@@ -1,5 +1,12 @@
 # CHANGELOG
 
+
+
+
+### v6.0.1 - 04/17/2026
+#### Updated 
+- Changed the bot.py and optimized the system prompt. 
+
 ### v6.0.0 - 04/17/2026
 #### Added
 - Voice Conversation feature of 60 seconds using the OpenAI Realtime API (gpt-realtime-mini)

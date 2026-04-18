@@ -354,7 +354,7 @@ def evaluate_routes(req: RouteEvaluationRequest) -> RouteEvaluationResponse:
         cost    = _calculate_cost(route, req, inland, dest, duty_rate, chargeable_kg)
         transit = _calculate_transit(route, inland, req.cargo_type)
         alerts  = [RouteAlert(**a) for a in route["alerts"]]
-        rate_source = "static"
+        rate_source = "live"
 
         live = live_rates.get(route["id"])
         if live is not None:

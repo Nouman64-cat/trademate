@@ -23,13 +23,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def get_driver():
     """Return a verified Neo4j driver instance."""
-    if not all([NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD]):
-        raise EnvironmentError(
-            "Missing NEO4J_URI, NEO4J_USERNAME, or NEO4J_PASSWORD in .env"
-        )
+    if not NEO4J_URI:
+        raise EnvironmentError("Missing NEO4J_URI in .env")
+    
+    # Memgraph accepts empty strings for default auth
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
     driver.verify_connectivity()
-    logger.info("Neo4j connection established → %s", NEO4J_URI)
+    logger.info("Database connection established → %s", NEO4J_URI)
     return driver
 
 
@@ -48,19 +48,17 @@ def get_embeddings() -> OpenAIEmbeddings:
 # ---------------------------------------------------------------------------
 
 _CONSTRAINTS = [
-    # Hierarchy nodes keyed on their code
-    "CREATE CONSTRAINT chapter_code IF NOT EXISTS FOR (n:Chapter) REQUIRE n.code IS UNIQUE",
-    "CREATE CONSTRAINT subchapter_code IF NOT EXISTS FOR (n:SubChapter) REQUIRE n.code IS UNIQUE",
-    "CREATE CONSTRAINT heading_code IF NOT EXISTS FOR (n:Heading) REQUIRE n.code IS UNIQUE",
-    "CREATE CONSTRAINT subheading_code IF NOT EXISTS FOR (n:SubHeading) REQUIRE n.code IS UNIQUE",
-    "CREATE CONSTRAINT hscode_code IF NOT EXISTS FOR (n:HSCode) REQUIRE n.code IS UNIQUE",
-    # Leaf nodes keyed on a computed uid hash
-    "CREATE CONSTRAINT tariff_uid IF NOT EXISTS FOR (n:Tariff) REQUIRE n.uid IS UNIQUE",
-    "CREATE CONSTRAINT cess_uid IF NOT EXISTS FOR (n:Cess) REQUIRE n.uid IS UNIQUE",
-    "CREATE CONSTRAINT exemption_uid IF NOT EXISTS FOR (n:Exemption) REQUIRE n.uid IS UNIQUE",
-    "CREATE CONSTRAINT antidumping_uid IF NOT EXISTS FOR (n:AntiDumpingDuty) REQUIRE n.uid IS UNIQUE",
-    "CREATE CONSTRAINT procedure_uid IF NOT EXISTS FOR (n:Procedure) REQUIRE n.uid IS UNIQUE",
-    "CREATE CONSTRAINT measure_uid IF NOT EXISTS FOR (n:Measure) REQUIRE n.uid IS UNIQUE",
+    "CREATE CONSTRAINT ON (n:Chapter) ASSERT n.code IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:SubChapter) ASSERT n.code IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Heading) ASSERT n.code IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:SubHeading) ASSERT n.code IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:HSCode) ASSERT n.code IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Tariff) ASSERT n.uid IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Cess) ASSERT n.uid IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Exemption) ASSERT n.uid IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:AntiDumpingDuty) ASSERT n.uid IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Procedure) ASSERT n.uid IS UNIQUE;",
+    "CREATE CONSTRAINT ON (n:Measure) ASSERT n.uid IS UNIQUE;",
 ]
 
 
@@ -68,5 +66,10 @@ def create_constraints(driver) -> None:
     """Idempotently create all uniqueness constraints."""
     with driver.session() as session:
         for cypher in _CONSTRAINTS:
-            session.run(cypher)
+            try:
+                session.run(cypher)
+            except Exception as e:
+                # Memgraph throws an error if the constraint already exists, we can safely ignore it
+                if "already exists" not in str(e).lower():
+                    logger.warning(f"Constraint issue: {e}")
     logger.info("Schema constraints verified / created.")

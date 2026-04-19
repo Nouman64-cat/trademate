@@ -263,10 +263,7 @@ def generate_embeddings(nodes_list: list[dict], embeddings_model) -> None:
 # Step 3 — Neo4j: constraint + node insertion
 # ---------------------------------------------------------------------------
 
-_US_CONSTRAINT = (
-    "CREATE CONSTRAINT us_uid IF NOT EXISTS "
-    "FOR (n:US) REQUIRE n.uid IS UNIQUE"
-)
+_US_CONSTRAINT = "CREATE CONSTRAINT ON (n:US) ASSERT n.uid IS UNIQUE;"
 
 _NODE_CYPHER = """
 UNWIND $batch AS row
@@ -301,7 +298,11 @@ MERGE (p)-[:HAS_CHILD]->(c)
 def create_us_constraints(driver) -> None:
     """Create the US-specific uniqueness constraint (idempotent)."""
     with driver.session() as session:
-        session.run(_US_CONSTRAINT)
+        try:
+            session.run(_US_CONSTRAINT)
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                logger.warning(f"Constraint issue: {e}")
     logger.info("  US constraint verified / created.")
 
 

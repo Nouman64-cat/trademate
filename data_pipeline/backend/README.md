@@ -98,6 +98,50 @@ python verify_pinecone.py
 
 This script also prints the last 3 `research/` JSON objects from S3 (requires S3 List/Get permissions).
 
+## Data Sources
+
+### 1. News & Trends (RSS/Web)
+- Fetches articles from a curated RSS list (`app/services/news_fetcher.py`).
+- Filters matches by query keywords and extracts full article text using OpenAI for summarization.
+
+### 2. Trade Statistics (UN Comtrade)
+- Fetches official bilateral trade data between the US and Pakistan using the UN Comtrade Public API.
+- Converts numeric trade records into descriptive text (e.g., *"In 2023, Pakistan exported Cotton to the USA worth $520.45 million"*) for RAG-based analysis.
+
+## Automated Updates (Smart Hybrid Schedule)
+
+The pipeline is designed to be cost and performance-efficient by using a hybrid schedule:
+
+- **Hourly**: Fetches latest news, trends, and market sentiment.
+- **Daily (00:00 UTC)**: Triggers a "Trade Stats Refresh" for the UN Comtrade data. Since official stats change less frequently, this saves on API and embedding costs.
+- **Manual Force**: You can force a stats update at any time by passing `"force_stats_refresh": true` in the Lambda event payload.
+
+## Manual Utility Commands
+
+Use these commands for maintenance and testing (using the project `.venv`):
+
+- **Fetch US-Pakistan Trade Data (5-year history)**:
+  ```bash
+  ./.venv/bin/python -m app.services.comtrade_processor
+  ```
+
+- **Verify Search Results**:
+  ```bash
+  # Test searching the index for trade-specific data
+  ./.venv/bin/python -c "from app.services.research_handler import lambda_handler; print(lambda_handler({'query':'US Pakistan textile trade stats'}, None))"
+  ```
+
+- **Clear Pinecone Index**:
+  ```bash
+  # Delete all vectors from the index (requires confirmation)
+  ./.venv/bin/python clear_pinecone.py
+  ```
+
+- **Verify Index Stats**:
+  ```bash
+  ./.venv/bin/python verify_pinecone.py
+  ```
+
 ## Deployment
 
 This project deploys as a Lambda using Serverless Framework with an ECR image.
@@ -107,36 +151,5 @@ Deploy (from `data_pipeline/backend`):
 npx serverless deploy --stage dev --aws-profile zygotrix --region us-east-1
 ```
 
-Notes:
-
-- The scheduled trigger is defined in `serverless.yml`. To change the cron, edit
-  the `events` -> `schedule` expression under the `researcher` function. Example hourly cron:
-  `cron(0 0/1 * * ? *)`.
-- Ensure the Lambda's environment variables include the same keys as your local `.env`.
-
-## Logs & Monitoring
-
-- Tail logs with the AWS CLI (v2 recommended):
-
-```bash
-aws --profile zygotrix --region us-east-1 logs tail /aws/lambda/trademate-research-pipeline-dev-researcher-img --follow --since 1h
-```
-
-Or use `filter-log-events` on AWS CLI v1.
-
-## IAM & Permissions
-
-- The function requires S3 `PutObject`/`GetObject` and Pinecone/OpenAI network access.
-- For local S3 access use `AWS_ACCESS_KEY_ID_MANUAL` and `AWS_SECRET_ACCESS_KEY_MANUAL` in `.env` or run with a profile.
-
-## Troubleshooting
-
-- `AccessDenied` when listing S3: ensure the IAM user/role has `s3:ListBucket` on the bucket and `s3:GetObject` on the `research/` prefix.
-- If no news results are returned: try a broader query, set `require_all=False`, or increase `max_items`.
-- High runtime/billed duration: reduce `max_items`, lower `full_fetch_limit`, or increase the Lambda `timeout`/memory depending on needs.
-
-## Contributing
-
-- Keep changes minimal and configuration-driven. When adding new fetchers (UN Comtrade, SAM.gov), add a dedicated module under `app/services/` and call it from `fetch_research_data` in `research_service.py`.
-
-If you want, I can add a UN Comtrade fetcher next (structured trade flows) — tell me and I'll implement it.
+> [!IMPORTANT]
+> Because this project uses Docker images for Lambda, `serverless invoke local` is not supported. Use the manual Python commands listed above for local testing.

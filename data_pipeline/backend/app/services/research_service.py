@@ -17,6 +17,7 @@ from app.config import settings
 from app.services.embedder import embed_texts
 from app.services.vector_store import make_vector_id, upsert_vectors
 from app.services.news_fetcher import fetch_news_by_query
+from app.services.comtrade_processor import fetch_and_store_trade_data, PAKISTAN_CODE, USA_CODE
 
 logger = logging.getLogger("trademate.research")
 
@@ -180,15 +181,47 @@ def store_research(results: List[Dict[str, Any]], query: str):
 # ── Orchestration ─────────────────────────────────────────────────────────────
 
 
-def run_research_pipeline(query: str):
+def run_comtrade_refresh():
+    """
+    Refreshes the latest trade data for US-Pakistan corridors.
+    Typically run as a scheduled task.
+    """
+    logger.info("Starting scheduled UN Comtrade data refresh for US-Pakistan...")
+    # For automated hourly runs, we only fetch the most recent 2 years to stay updated
+    current_year = datetime.utcnow().year
+    years = [str(current_year - 1), str(current_year)]
+    
+    try:
+        # Pakistan -> USA
+        fetch_and_store_trade_data(years, PAKISTAN_CODE, USA_CODE)
+        # USA -> Pakistan
+        fetch_and_store_trade_data(years, USA_CODE, PAKISTAN_CODE)
+        return {"status": "success", "message": f"Refreshed Comtrade data for years {years}"}
+    except Exception as e:
+        logger.exception("Comtrade refresh failed")
+        return {"status": "error", "message": str(e)}
+
+
+def run_research_pipeline(query: str, include_comtrade: bool = False):
     """
     Runs the full research pipeline.
     """
     try:
+        # 1. Fetch News Research
         raw_data = fetch_research_data(query)
         processed_data = process_research(raw_data)
         store_research(processed_data, query)
-        return {"status": "success", "message": f"Processed {len(processed_data)} research items."}
+        
+        # 2. Optionally include Comtrade refresh if requested or for specific queries
+        comtrade_result = None
+        if include_comtrade or "trade stats" in query.lower() or "export volumes" in query.lower():
+            comtrade_result = run_comtrade_refresh()
+            
+        message = f"Processed {len(processed_data)} research items."
+        if comtrade_result:
+            message += f" Comtrade Result: {comtrade_result['message']}"
+            
+        return {"status": "success", "message": message}
     except Exception as e:
         logger.exception("Research pipeline failed")
         return {"status": "error", "message": str(e)}

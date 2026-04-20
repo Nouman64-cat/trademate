@@ -505,6 +505,30 @@ RETURN
 """
 
 
+def _text_search_pk(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
+    """
+    Text search fallback for PK nodes when MAGE is unavailable.
+    Tries the full phrase first, then falls back to individual significant words
+    so that queries like "cotton yarn" still match "yarn of combed cotton fibres".
+    """
+    _STOPWORDS = {"of", "in", "the", "and", "or", "for", "to", "a", "an", "on", "at", "by"}
+
+    with _read_session() as session:
+        records = session.run(_PK_TEXT_CYPHER, keyword=query.strip(), top_k=top_k).data()
+        if records:
+            return records
+
+    # Full-phrase match failed — try each significant word individually, return first hit
+    words = [w for w in query.lower().split() if len(w) > 2 and w not in _STOPWORDS]
+    for word in words:
+        with _read_session() as session:
+            records = session.run(_PK_TEXT_CYPHER, keyword=word, top_k=top_k).data()
+            if records:
+                logger.info("[NEO4J → PK] Text fallback matched on keyword %r", word)
+                return records
+    return []
+
+
 def _pk_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
     """Vector similarity search for :PK nodes. Falls back to text search if MAGE unavailable."""
     vector = _get_embeddings().embed_query(query)
@@ -519,9 +543,7 @@ def _pk_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
     except Exception as exc:
         if "no procedure" in str(exc).lower() or "vector_search" in str(exc).lower():
             logger.warning("[NEO4J → PK] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
-            keyword = query.strip()
-            with _read_session() as session:
-                return session.run(_PK_TEXT_CYPHER, keyword=keyword, top_k=top_k).data()
+            return _text_search_pk(query, top_k)
         raise
 
 
@@ -529,6 +551,30 @@ def _us_code_lookup(code: str) -> list[dict]:
     """Exact match on hs.hts_code for the US schema. Returns raw Cypher result."""
     with _read_session() as session:
         return session.run(_US_CODE_CYPHER, code=code).data()
+
+
+def _text_search_us(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
+    """
+    Text search fallback for US nodes when MAGE is unavailable.
+    Tries the full phrase first, then falls back to individual significant words
+    so that queries like "cotton yarn" still match "yarn of combed cotton".
+    """
+    _STOPWORDS = {"of", "in", "the", "and", "or", "for", "to", "a", "an", "on", "at", "by"}
+
+    with _read_session() as session:
+        records = session.run(_US_TEXT_CYPHER, keyword=query.strip(), top_k=top_k).data()
+        if records:
+            return records
+
+    # Full-phrase match failed — try each significant word individually, return first hit
+    words = [w for w in query.lower().split() if len(w) > 2 and w not in _STOPWORDS]
+    for word in words:
+        with _read_session() as session:
+            records = session.run(_US_TEXT_CYPHER, keyword=word, top_k=top_k).data()
+            if records:
+                logger.info("[NEO4J → US] Text fallback matched on keyword %r", word)
+                return records
+    return []
 
 
 def _us_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
@@ -545,10 +591,40 @@ def _us_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
     except Exception as exc:
         if "no procedure" in str(exc).lower() or "vector_search" in str(exc).lower():
             logger.warning("[NEO4J → US] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
-            keyword = query.strip()
-            with _read_session() as session:
-                return session.run(_US_TEXT_CYPHER, keyword=keyword, top_k=top_k).data()
+            return _text_search_us(query, top_k)
         raise
+
+
+# ── query expansion helper ────────────────────────────────────────────────────
+
+
+def _expand_query(query: str) -> str:
+    """
+    Use the router LLM to rewrite a consumer-language query into official
+    trade/HS terminology so the vector and text searches match better.
+
+    Example: "mobile phones" → "cellular telephones smartphones telephone sets
+    wireless handsets portable communication devices"
+    """
+    try:
+        llm = _get_router_llm()
+        response = llm.invoke([
+            SystemMessage(content=(
+                "You are a customs classification expert. "
+                "Rewrite the query below using ONLY official HS/trade terminology "
+                "as it would appear in a customs tariff schedule. "
+                "Include synonyms and alternate official names. "
+                "Return ONLY the expanded query string — no explanation, no punctuation."
+            )),
+            {"role": "user", "content": query},
+        ])
+        expanded = response.content.strip()
+        if expanded and expanded != query:
+            logger.info("━━━ [EXPAND] %r → %r", query[:60], expanded[:80])
+        return expanded or query
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("━━━ [EXPAND] Query expansion failed: %s", exc)
+        return query
 
 
 # ── tool input schemas ────────────────────────────────────────────────────────
@@ -557,10 +633,15 @@ def _us_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
 class _PKSearchInput(BaseModel):
     query: str = Field(
         description=(
-            "The user's question or product description to look up in Pakistan's "
-            "PCT database. Can be a product name (e.g. 'mobile phones'), a "
-            "12-digit Pakistan HS code (e.g. '851712000000'), or a natural-language "
-            "description. Do not include words like 'US' or 'American' here."
+            "The product or topic to look up in Pakistan's PCT database. "
+            "IMPORTANT: always use official trade/HS terminology, not consumer language. "
+            "Examples: 'mobile phones' → 'cellular telephones smartphones telephone sets', "
+            "'cars' → 'passenger motor vehicles automobiles', "
+            "'laptops' → 'portable automatic data processing machines computers', "
+            "'rice' → 'rice husked milled paddy', "
+            "'clothes' → 'garments apparel woven fabric'. "
+            "You may also pass a 12-digit Pakistan HS code directly (e.g. '851712000000'). "
+            "Do not include words like 'US' or 'American' here."
         )
     )
 
@@ -568,9 +649,13 @@ class _PKSearchInput(BaseModel):
 class _USSearchInput(BaseModel):
     query: str = Field(
         description=(
-            "The user's question or product description to look up in the US HTS "
-            "database. Can be a product name (e.g. 'live horses'), a US HTS code "
-            "(e.g. '0101.21.00'), or a natural-language description. "
+            "The product or topic to look up in the US HTS database. "
+            "IMPORTANT: always use official trade/HS terminology, not consumer language. "
+            "Examples: 'mobile phones' → 'cellular telephones smartphones telephone sets', "
+            "'cars' → 'passenger motor vehicles automobiles', "
+            "'laptops' → 'portable automatic data processing machines', "
+            "'clothes' → 'garments apparel woven fabric'. "
+            "You may also pass a US HTS code directly (e.g. '0101.21.00'). "
             "Do not include words like 'Pakistan' or 'PCT' here."
         )
     )
@@ -614,10 +699,22 @@ def search_pakistan_hs_data(query: str) -> str:
             logger.info("━━━ [NEO4J → PK] Vector search: %r", query[:80])
             records = _pk_vector_search(query)
 
+            # Retry with trade-terminology expansion if first pass returned nothing
+            if not records:
+                logger.info("━━━ [NEO4J → PK] No results — retrying with expanded trade query.")
+                expanded = _expand_query(query)
+                if expanded != query:
+                    records = _pk_vector_search(expanded)
+
         if records:
             logger.info("━━━ [NEO4J → PK ✔] Returned %d record(s) from Graph DB (Pakistan PCT).", len(records))
         else:
             logger.warning("━━━ [NEO4J → PK ✘] No results found in Pakistan PCT data.")
+            return (
+                f"NO_RESULTS: The Pakistan PCT database returned no records for '{query}'. "
+                "Tell the user no matching HS code was found and suggest they try a more specific "
+                "product name or the official customs terminology."
+            )
 
         return _format_pk_results(records)
 
@@ -664,10 +761,22 @@ def search_us_hs_data(query: str) -> str:
             logger.info("━━━ [NEO4J → US] Vector search: %r", query[:80])
             records = _us_vector_search(query)
 
+            # Retry with trade-terminology expansion if first pass returned nothing
+            if not records:
+                logger.info("━━━ [NEO4J → US] No results — retrying with expanded trade query.")
+                expanded = _expand_query(query)
+                if expanded != query:
+                    records = _us_vector_search(expanded)
+
         if records:
             logger.info("━━━ [NEO4J → US ✔] Returned %d record(s) from Graph DB (US HTS).", len(records))
         else:
             logger.warning("━━━ [NEO4J → US ✘] No results found in US HTS data.")
+            return (
+                f"NO_RESULTS: The US HTS database returned no records for '{query}'. "
+                "Tell the user no matching HTS code was found and suggest they try a more specific "
+                "product name or the official US HTS terminology."
+            )
 
         return _format_us_results(records)
 
@@ -879,7 +988,9 @@ def evaluate_shipping_routes(
 
 _BOT_SYSTEM_PROMPT = SystemMessage(content="""\
 You are TradeMate, an expert AI assistant specialising in international trade,
-Harmonized System (HS) codes, import/export regulations, and tariff schedules.
+import/export regulations, Harmonized System (HS) codes, tariff schedules,
+trade procedures, logistics, and trade finance. You have broad expertise across
+ALL aspects of international trade — not just tariff lookups.
 
 You have access to four tools:
 
@@ -892,23 +1003,39 @@ You have access to four tools:
        unit of quantity, hierarchical parent/child structure.
 
   3. search_trade_documents  [Vector DB — Policy Docs]
-     → Trade policy documents, FTAs, SRO texts, WTO regulations, compliance guidelines.
+     → Trade policy documents, FTAs, SRO texts, WTO regulations, compliance guidelines,
+       import/export procedures, licensing, and trade scheme documentation.
 
   4. evaluate_shipping_routes  [Route Engine]
      → Pakistan → USA shipping routes with full cost breakdown, transit times, carriers.
      → Renders an interactive widget to the user automatically.
 
 ═══════════════════════════════════════════════════════
-TOOL CALLING RULES
+WHEN TO CALL TOOLS vs. WHEN TO ANSWER DIRECTLY
 ═══════════════════════════════════════════════════════
-• ALWAYS call at least one tool — never answer trade questions from memory alone.
+Call tools ONLY when the answer requires live database data:
+  • Specific HS codes or tariff rates for a product → search_pakistan_hs_data / search_us_hs_data
+  • Shipping route costs, transit times → evaluate_shipping_routes
+  • Trade policy documents, SRO texts, licensing procedures → search_trade_documents
+
+Answer DIRECTLY from your expertise (no tools) when:
+  • Greetings, small talk, or follow-up clarifications
+  • General trade concepts and definitions (FOB, CIF, letter of credit, Incoterms, etc.)
+  • General explanations of how trade processes work (customs clearance, documentation, etc.)
+  • Any question answerable from broad trade knowledge without needing a specific database lookup
+
 • Product / commodity query (no country specified) → call BOTH search_pakistan_hs_data AND search_us_hs_data.
 • "Pakistan only" query → call search_pakistan_hs_data only.
 • "US only" query → call search_us_hs_data only.
 • Policy / SRO / regulation → call search_trade_documents (alongside Neo4j tools if rates also needed).
 • Shipping / freight / logistics → call evaluate_shipping_routes.
 • Cross-country comparison → call BOTH Neo4j tools.
-• ONLY cite codes and rates that appear verbatim in tool results. Never invent or estimate.
+• ONLY cite HS codes and tariff rates that appear verbatim in tool results. Never invent or estimate.
+• When a tool returns NO_RESULTS: tell the user clearly that no matching record was found in the
+  database for that product. Suggest they try a more specific name or the exact HS/HTS code.
+  Do NOT fill the response with generic rate estimates or bullet-point placeholders.
+• When using results from search_trade_documents: always cite the source document name
+  (e.g. "According to [Document Name]...") so the user knows where the information came from.
 
 ═══════════════════════════════════════════════════════
 COMPLETENESS RULE — MOST IMPORTANT FOR HS CODE QUERIES
@@ -1075,18 +1202,31 @@ _TOOL_MAP  = {t.name: t for t in _ALL_TOOLS}
 # ── Router ────────────────────────────────────────────────────────────────────
 
 _ROUTER_PROMPT = """\
-You are a query router for TradeMate. Return ONLY a JSON array of tool names. No explanation.
+You are a query router for TradeMate. Return ONLY a JSON array of tool names (or an empty array []). No explanation.
 
 Tools:
   search_pakistan_hs_data  — Pakistan PCT: HS codes, tariffs, cess, exemptions, procedures, measures
   search_us_hs_data        — US HTS: HS codes, duty rates, US trade classifications
-  search_trade_documents   — Trade policy documents, agreements, SROs, regulations
+  search_trade_documents   — Trade policy documents, agreements, SROs, regulations, trade procedures
   evaluate_shipping_routes — Shipping routes & freight costs from Pakistan to USA
 
 Follow this exact decision tree in order:
 
+STEP 0 — Conversational / General Knowledge (NO tools needed → return [])
+  Return [] if the query is ANY of these:
+  - Greetings or small talk ("hello", "hi", "how are you", "thanks", "bye", "good morning")
+  - General trade concept or definition that does NOT require looking up a specific product,
+    tariff rate, or HS code from a database:
+      ("what is an HS code", "what is FOB", "what is CIF", "what is a letter of credit",
+       "what is the difference between FOB and CIF", "what is GSP", "explain Incoterms",
+       "what is customs clearance", "what is a bill of lading", "what is a commercial invoice")
+  - Follow-up or clarification on a previous answer ("explain more", "what does that mean",
+    "can you elaborate", "tell me more", "go on")
+  - Any question answerable from general trade knowledge without a product/country database lookup
+  Return [] for these — the LLM answers directly from its expertise.
+
 STEP 1 — Shipping
-  If the query is about shipping routes, freight costs, transit times, or logistics:
+  If the query is about shipping routes, freight costs, transit times, or logistics from Pakistan to USA:
     → always include "evaluate_shipping_routes"
 
 STEP 2 — HS Codes / Tariffs / Duties / Classifications / Products
@@ -1117,35 +1257,50 @@ STEP 3 — Pakistan-specific fields (procedures, measures, cess, exemptions, SRO
     → include ONLY "search_pakistan_hs_data"
   (These fields exist only in the Pakistan database.)
 
-STEP 4 — Policy / Documents
-  If the query is about trade policy, agreements, regulations, SRO documents, or general trade context:
+STEP 4 — Policy / Documents / General Trade Procedures
+  If the query is about trade policy, FTAs, SRO documents, trade agreements, import/export
+  documentation requirements, licensing, compliance, or general "how to" trade questions
+  (e.g. "how do I start exporting", "what documents are needed to export",
+   "how to get an NTN", "DTRE scheme", "EDF form", "Pakistan trade agreements",
+   "what is the process to register as an exporter"):
     → include "search_trade_documents"
-  Also include for general "what is X" questions alongside the Neo4j tools.
+  Also include alongside Neo4j tools when policy context would enrich the answer.
 
 Examples (follow these exactly):
-  "give me the hs codes for fruits"                       → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "hs code for mangoes"                                   → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "hs codes for textiles"                                 → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "tariffs for rice"                                      → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "duty on electronics"                                   → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "classification for steel"                              → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "what is the hs code for smartphones in pakistan"       → ["search_pakistan_hs_data"]
-  "pakistan customs duty on cars"                         → ["search_pakistan_hs_data"]
-  "US tariff on cotton"                                   → ["search_us_hs_data"]
-  "HTS code for live horses"                              → ["search_us_hs_data"]
-  "taxes on horses in the US"                             → ["search_us_hs_data"]
-  "duty on mangoes in the US"                             → ["search_us_hs_data"]
-  "hs code for rice in the US"                            → ["search_us_hs_data"]
-  "what are the taxes on steel in the United States"      → ["search_us_hs_data"]
-  "taxes on horses in Pakistan"                           → ["search_pakistan_hs_data"]
-  "duty on mangoes in Pakistan"                           → ["search_pakistan_hs_data"]
-  "compare pakistan and us duties on steel"               → ["search_pakistan_hs_data", "search_us_hs_data"]
-  "procedures and measures for mangoes"                   → ["search_pakistan_hs_data"]
-  "exemptions for textile imports in pakistan"            → ["search_pakistan_hs_data"]
-  "what is an SRO exemption"                              → ["search_trade_documents"]
-  "show me shipping routes from karachi to new york"      → ["evaluate_shipping_routes"]
-  "cheapest way to ship textiles from pakistan to usa"    → ["evaluate_shipping_routes", "search_pakistan_hs_data"]
-  "what are automotive products"                          → ["search_pakistan_hs_data", "search_us_hs_data", "search_trade_documents"]
+  "hello" / "hi" / "how are you"                          → []
+  "what is an HS code"                                     → []
+  "what is FOB"                                            → []
+  "explain CIF vs FOB"                                     → []
+  "what is a letter of credit"                             → []
+  "how does customs clearance work in general"             → []
+  "explain that further"                                   → []
+  "how do I start exporting from Pakistan"                 → ["search_trade_documents"]
+  "what documents are needed to export goods"              → ["search_trade_documents"]
+  "how to register as an exporter in Pakistan"             → ["search_trade_documents"]
+  "give me the hs codes for fruits"                        → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "hs code for mangoes"                                    → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "hs codes for textiles"                                  → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "tariffs for rice"                                       → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "duty on electronics"                                    → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "classification for steel"                               → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "what is the hs code for smartphones in pakistan"        → ["search_pakistan_hs_data"]
+  "pakistan customs duty on cars"                          → ["search_pakistan_hs_data"]
+  "US tariff on cotton"                                    → ["search_us_hs_data"]
+  "HTS code for live horses"                               → ["search_us_hs_data"]
+  "taxes on horses in the US"                              → ["search_us_hs_data"]
+  "duty on mangoes in the US"                              → ["search_us_hs_data"]
+  "hs code for rice in the US"                             → ["search_us_hs_data"]
+  "what are the taxes on steel in the United States"       → ["search_us_hs_data"]
+  "taxes on horses in Pakistan"                            → ["search_pakistan_hs_data"]
+  "duty on mangoes in Pakistan"                            → ["search_pakistan_hs_data"]
+  "compare pakistan and us duties on steel"                → ["search_pakistan_hs_data", "search_us_hs_data"]
+  "procedures and measures for mangoes"                    → ["search_pakistan_hs_data"]
+  "exemptions for textile imports in pakistan"             → ["search_pakistan_hs_data"]
+  "what is an SRO exemption"                               → ["search_trade_documents"]
+  "what is the DTRE scheme"                                → ["search_trade_documents"]
+  "show me shipping routes from karachi to new york"       → ["evaluate_shipping_routes"]
+  "cheapest way to ship textiles from pakistan to usa"     → ["evaluate_shipping_routes", "search_pakistan_hs_data"]
+  "what are automotive products"                           → ["search_pakistan_hs_data", "search_us_hs_data", "search_trade_documents"]
 
 Respond with ONLY the JSON array. No explanation, no markdown.
 """
@@ -1194,6 +1349,11 @@ def _route_query(query: str) -> list:
             ).strip()
 
         selected_names: list[str] = json.loads(raw)
+
+        # Router explicitly returned [] → no tools needed for this query
+        if isinstance(selected_names, list) and len(selected_names) == 0:
+            logger.info("━━━ [ROUTER] No tools needed — LLM will answer directly.")
+            return []
 
         # Validate — keep only names that exist in the registry
         valid   = [n for n in selected_names if n in _TOOL_MAP]
@@ -1307,6 +1467,15 @@ class _RouterAgent:
 
         # ── Route ──────────────────────────────────────────────────────────
         selected_tools = _route_query(query)
+
+        # ── No tools needed — stream directly from LLM ─────────────────────
+        if not selected_tools:
+            logger.info("━━━ [AGENT] Direct LLM response (no tools).")
+            llm = _get_llm()
+            messages = [_BOT_SYSTEM_PROMPT] + list(state.get("messages", []))
+            async for chunk in llm.astream(messages):
+                yield chunk, {"langgraph_node": "agent"}
+            return
 
         # ── Build agent with selected tools only ───────────────────────────
         agent = _build_agent(selected_tools)

@@ -15,36 +15,51 @@ import { useThemeStore } from "@/stores/themeStore";
 // ── Map helpers (mirrors routes/page.tsx) ────────────────────────────────────
 
 const ROUTE_COORDINATES: Record<string, [number, number]> = {
-  PKKHI: [24.8615, 67.0099],
-  KHI:   [24.9061, 67.1605],
-  LKCMB: [6.9271, 79.8612],
-  AEJEA: [25.0555, 55.0537],
-  SGSIN: [1.2644, 103.8222],
-  MYPKG: [2.9734, 101.4094],
-  DXB:   [25.2532, 55.3657],
-  DOH:   [25.2736, 51.6080],
-  IST:   [41.2762, 28.7519],
-  JFK:   [40.6413, -73.7781],
-  ORD:   [41.9742, -87.9073],
+  // ── Pakistan origin ports ──────────────────────────────────────────────────
+  PKKHI:  [24.8615, 67.0099],
+  PKKHIA: [24.8615, 67.0099],  // alias used in pk_usa_routes.json
+  KHI:    [24.9061, 67.1605],
+
+  // ── Transshipment hubs ────────────────────────────────────────────────────
+  LKCMB:        [6.9271,   79.8612],
+  "Colombo":    [6.9271,   79.8612],  // plain name used in pk_usa_routes.json
+  SGSIN:        [1.2644,  103.8222],
+  "Singapore":  [1.3521,  103.8198],  // plain name used in pk_usa_routes.json
+  MYPKG:        [2.9734,  101.4094],
+  "Port Klang": [2.9734,  101.4094],  // plain name used in pk_usa_routes.json
+  AEJEA:        [25.0555,  55.0537],
+  DXB:          [25.2532,  55.3657],
+  DOH:          [25.2736,  51.6080],
+  IST:          [41.2762,  28.7519],
+  "Port Said":  [31.2565,  32.2841],  // plain name used in pk_usa_routes.json
+
+  // ── Canals ────────────────────────────────────────────────────────────────
+  "Suez Canal":   [30.5495,  32.3137],
+  "Panama Canal": [ 9.0800, -79.6800],
+
+  // ── US destination ports ──────────────────────────────────────────────────
+  JFK:   [40.6413,  -73.7781],
+  ORD:   [41.9742,  -87.9073],
   LAX:   [33.9416, -118.4085],
-  MIA:   [25.7959, -80.2870],
+  MIA:   [25.7959,  -80.2870],
   USLAX: [33.7405, -118.2775],
   USLGB: [33.7500, -118.2167],
-  USNYC: [40.6782, -73.9442],
-  USSAV: [32.0809, -81.0912],
-  USBAL: [39.2904, -76.6122],
-  USMIA: [25.7959, -80.2870],
-  USCHI: [41.8781, -87.6298],
+  USNYC: [40.6782,  -73.9442],
+  USNYK: [40.6782,  -73.9442],  // alias used in pk_usa_routes.json
+  USSAV: [32.0809,  -81.0912],
+  USBAL: [39.2904,  -76.6122],
+  USMIA: [25.7959,  -80.2870],
+  USCHI: [41.8781,  -87.6298],
   USSEA: [47.6062, -122.3321],
-  "Suez Canal":   [30.5495, 32.3137],
-  "Panama Canal": [9.0800, -79.6800],
-  "Karachi":      [24.8607, 67.0011],
-  "Los Angeles":  [34.0522, -118.2437],
-  "New York":     [40.7128, -74.0060],
-  "Chicago":      [41.8781, -87.6298],
-  "Miami":        [25.7617, -80.1918],
-  "Savannah":     [32.0809, -81.0912],
-  "Seattle":      [47.6062, -122.3321],
+
+  // ── City name fallbacks (used when port code lookup fails) ────────────────
+  "Karachi":     [24.8607,   67.0011],
+  "Los Angeles": [34.0522, -118.2437],
+  "New York":    [40.7128,  -74.0060],
+  "Chicago":     [41.8781,  -87.6298],
+  "Miami":       [25.7617,  -80.1918],
+  "Savannah":    [32.0809,  -81.0912],
+  "Seattle":     [47.6062, -122.3321],
 };
 
 function getLocationCoordinates(location: string): [number, number] | null {
@@ -111,12 +126,14 @@ function makeLabelIcon(text: string, type: StopType): L.DivIcon {
 // ── Route map component ──────────────────────────────────────────────────────
 
 function RouteMap({ data }: { data: RouteEvaluationResponse }) {
-  const { theme, resolvedTheme } = useThemeStore();
-  
-  // Make sure to re-evaluate when theme updates
+  const { resolvedTheme } = useThemeStore();
   const isDark = resolvedTheme() === "dark";
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Incrementing this key forces a full Leaflet destroy-and-recreate after the
+  // fullscreen CSS has been applied, so the map initialises at the correct size.
+  const [mapKey, setMapKey] = useState(0);
+
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef  = useRef<L.Map | null>(null);
   const routeLayerRef   = useRef<L.LayerGroup | null>(null);
@@ -128,30 +145,44 @@ function RouteMap({ data }: { data: RouteEvaluationResponse }) {
     isOptimized: route.id === data.routes[0]?.id,
   })).filter(item => item.stops.length >= 2), [data]);
 
-  // Build / rebuild layers whenever route data changes
+  // After isFullscreen flips the CSS, wait for the browser to reflow then
+  // bump mapKey so the build effect runs on a correctly-sized container.
   useEffect(() => {
-    if (!mapContainerRef.current) {
-      return;
+    const timer = setTimeout(() => setMapKey(k => k + 1), 200);
+    return () => clearTimeout(timer);
+  }, [isFullscreen]);
+
+  // Build / rebuild the entire Leaflet map whenever route data or mapKey changes.
+  // Destroying the old instance each time guarantees tiles are always requested
+  // for the actual container dimensions (fixes blank tiles on fullscreen toggle).
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    // Destroy any stale Leaflet instance before creating a fresh one.
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+      routeLayerRef.current  = null;
+      tileLayerRef.current   = null;
     }
 
-    if (!mapInstanceRef.current) {
-      mapInstanceRef.current = L.map(mapContainerRef.current, {
-        zoomControl: true,
-        scrollWheelZoom: true,
-      });
-      const tileUrl = isDark 
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-        
-      tileLayerRef.current = L.tileLayer(tileUrl, {
-        attribution: '&copy; OpenStreetMap, CARTO',
-      }).addTo(mapInstanceRef.current);
-      routeLayerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-    }
+    mapInstanceRef.current = L.map(mapContainerRef.current, {
+      zoomControl: true,
+      scrollWheelZoom: true,
+      center: [25, 40],
+      zoom: 3,
+    });
+    const tileUrl = isDark
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+    tileLayerRef.current = L.tileLayer(tileUrl, {
+      attribution: '&copy; OpenStreetMap, CARTO',
+      keepBuffer: 4,
+    }).addTo(mapInstanceRef.current);
+    routeLayerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
 
     const map        = mapInstanceRef.current;
     const layerGroup = routeLayerRef.current;
-    if (!map || !layerGroup) return;
 
     layerGroup.clearLayers();
     const allCoords:    [number, number][] = [];
@@ -205,58 +236,18 @@ function RouteMap({ data }: { data: RouteEvaluationResponse }) {
     if (allCoords.length > 0) {
       map.fitBounds(L.latLngBounds(allCoords), { padding: [40, 40] });
     }
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
-  }, [routeLineData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeLineData, mapKey]);
 
-  // Update tile layer url when theme changes
+  // Update tile URL when theme changes without rebuilding the whole map.
   useEffect(() => {
     if (tileLayerRef.current) {
-      const tileUrl = isDark 
+      const tileUrl = isDark
         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
       tileLayerRef.current.setUrl(tileUrl);
     }
   }, [isDark]);
-
-  // React to fullscreen toggle + layout settled
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    let timeoutId: NodeJS.Timeout;
-
-    const allCoords: [number, number][] = routeLineData.flatMap(d => d.stops.map(s => s.coord));
-    
-    // Give the browser time to paint the new flexbox / fixed layout dimensions
-    timeoutId = setTimeout(() => {
-      // Ensure map hasn't unmounted
-      if (mapInstanceRef.current) {
-        map.invalidateSize({ animate: false });
-        if (allCoords.length > 0) {
-          map.fitBounds(L.latLngBounds(allCoords), { padding: [40, 40], animate: false });
-        }
-      }
-    }, 150);
-    
-    return () => clearTimeout(timeoutId);
-  }, [isFullscreen, routeLineData]);
-
-  // Attach ResizeObserver to the map container to fire invalidateSize precisely
-  useEffect(() => {
-    const el = mapContainerRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver(() => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize({ animate: false });
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   // Escape key exits fullscreen
   useEffect(() => {
@@ -330,13 +321,19 @@ function RouteMap({ data }: { data: RouteEvaluationResponse }) {
         </div>
       </div>
 
-      {/* Map container isolation: Parent manages flex layout, inner child gives strict pixels to Leaflet */}
-      <div className={cn(
-        "border border-zinc-200 dark:border-zinc-800 relative z-0",
-        isFullscreen ? "flex-1" : "h-56 rounded-xl overflow-hidden"
-      )}>
-        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />
-      </div>
+      {/* Map container: explicit pixel height so Leaflet always has a non-zero size at init */}
+      <div
+        ref={mapContainerRef}
+        className={cn(
+          "w-full border border-zinc-200 dark:border-zinc-800",
+          isFullscreen ? "rounded-none" : "rounded-xl"
+        )}
+        style={
+          isFullscreen
+            ? { flex: "1 1 0", minHeight: "300px" }
+            : { height: "224px" }
+        }
+      />
 
       {/* Legend (embedded only — fullscreen has it in header) */}
       {!isFullscreen && <div className="mt-2">{legend}</div>}

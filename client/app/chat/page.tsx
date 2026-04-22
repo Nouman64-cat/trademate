@@ -14,8 +14,10 @@ export default function NewChatPage() {
 
   const handleSend = async (message: string) => {
     const id = createConversation();
-    await sendMessage(id, message);
+    // Redirect immediately so the UI switches to the conversation view.
+    // The sendMessage call updates the global store, which the new page will reflect.
     router.push(`/chat/${id}`);
+    sendMessage(id, message);
   };
 
   return (

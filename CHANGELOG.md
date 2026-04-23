@@ -1,29 +1,34 @@
 # CHANGELOG
 
 ### v6.4.0 - 04/23/2026
+
 #### Migrated
+
 - Completed infrastructure migration from Neo4j to **Memgraph**, including driver initialization and connection logic.
 - Updated environment variables (`MEMGRAPH_*`) across all services and config files.
 
 #### Fixed
+
 - Resolved Cypher query ordering constraints (`MATCH` after `OPTIONAL MATCH`) for full Memgraph compatibility.
 - Fixed `UserInteraction` schema to support 20-character international HS codes (PostgreSQL migration).
 - Resolved attribute mapping bugs in `RouteRecommender` for carrier data and port identifiers.
 
 #### Enhanced
+
 - Improved HS code and cargo value extraction in chat with robust regex patterns that filter out quantities and commas.
 - Enabled prefix-based matching for HS recommendations to support 4, 6, and 12-digit codes.
 - Fully integrated all 4 recommendation layers (HS, Document, Route, and Tariff) into the live chat stream.
 
 ### v6.3.0
-#### Added 
 
+#### Added
 
 - Added user feedback and also updated a column in pgadmin4
 
-
 ### v6.2.1
+
 #### Updated
+
 - feat: enhance route evaluation and text search functionality with widget support and container handling
 
 ### v6.2.0 - 04/19/2026
@@ -36,7 +41,7 @@
 #### Changed
 
 - Refined the system prompts.
-- Shifted from neo4j to memgraph 
+- Shifted from neo4j to memgraph
 - Rerun the ingestion scripts
 
 ### v6.0.1 - 04/19/2026
@@ -72,7 +77,7 @@
 
 - Router node that classifies each query and selects only the relevant tools (Pakistan HS, US HS, Pinecone) before passing to the agent — reduces token usage and improves reliability
 - Conversation persistence: all chat messages stored in PostgreSQL (`conversations` + `messages` tables) with per-user isolation
-- LLM-generated conversation titles via `gpt-4o-mini` after the first exchange; sidebar shows a skeleton loader until the title arrives
+- LLM-generated conversation titles via `gpt-5.4` after the first exchange; sidebar shows a skeleton loader until the title arrives
 - OTP email verification on registration: new accounts are created with `is_verified=False`, a 6-digit code is sent via AWS SES, and the account is activated only after the code is confirmed
 - Forgot-password flow: OTP request → verify OTP → reset password, all backed by short-lived JWT reset tokens (15 min)
 - `verify-otp` page handles both registration verification (`mode=registration`) and password-reset (`mode=reset`) from a single UI

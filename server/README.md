@@ -1,6 +1,6 @@
 # TradeMate — Server
 
-FastAPI backend for TradeMate.  Handles authentication, onboarding, and the
+FastAPI backend for TradeMate. Handles authentication, onboarding, and the
 AI-powered chat endpoint that queries a Memgraph knowledge graph and streams
 responses via Server-Sent Events (SSE).
 
@@ -51,14 +51,14 @@ server/
 
 ## Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| Python      | 3.11 +  |
-| PostgreSQL  | 14 +    |
-| Memgraph Aura  | 5 +     |
+| Requirement   | Version |
+| ------------- | ------- |
+| Python        | 3.11 +  |
+| PostgreSQL    | 14 +    |
+| Memgraph Aura | 5 +     |
 
 The knowledge graph must be ingested before the chat endpoint returns useful
-results.  See `knowledge_graph/README.md` or run `knowledge_graph/ingest.py`.
+results. See `knowledge_graph/README.md` or run `knowledge_graph/ingest.py`.
 
 ---
 
@@ -117,6 +117,7 @@ The server starts at `http://localhost:8000`.
 Interactive API docs (Swagger UI): `http://localhost:8000/docs`
 
 On first startup the server will:
+
 - Create all database tables automatically.
 - Create the Memgraph vector index (`hscode_embedding_index`) if it does not exist.
 
@@ -126,17 +127,17 @@ On first startup the server will:
 
 ### Auth
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/v1/register` | No | Create a new user account |
-| POST | `/v1/login` | No | Authenticate and receive a JWT |
-| POST | `/v1/onboarding` | JWT | Complete the user profile |
+| Method | Path             | Auth | Description                    |
+| ------ | ---------------- | ---- | ------------------------------ |
+| POST   | `/v1/register`   | No   | Create a new user account      |
+| POST   | `/v1/login`      | No   | Authenticate and receive a JWT |
+| POST   | `/v1/onboarding` | JWT  | Complete the user profile      |
 
 ### Chat
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/v1/chat` | JWT | Stream an AI response via SSE |
+| Method | Path       | Auth | Description                   |
+| ------ | ---------- | ---- | ----------------------------- |
+| POST   | `/v1/chat` | JWT  | Stream an AI response via SSE |
 
 #### `POST /v1/chat` — Request body
 
@@ -145,7 +146,7 @@ On first startup the server will:
   "message": "What is the customs duty on importing laptops to Pakistan?",
   "conversation_id": "optional-uuid-string",
   "history": [
-    { "role": "user",      "content": "Hello" },
+    { "role": "user", "content": "Hello" },
     { "role": "assistant", "content": "Hi! How can I help?" }
   ]
 }
@@ -161,6 +162,7 @@ data: {"type": "done",                                "conversation_id": "..."}
 ```
 
 On error:
+
 ```
 data: {"type": "error", "detail": "error message",   "conversation_id": "..."}
 ```
@@ -169,7 +171,7 @@ data: {"type": "error", "detail": "error message",   "conversation_id": "..."}
 
 ## Running Tests
 
-All tests live in `server/tests/`.  Run from the `server/` directory:
+All tests live in `server/tests/`. Run from the `server/` directory:
 
 ```bash
 cd trademate/server
@@ -189,25 +191,25 @@ python -m pytest tests/test_graph_retrieval.py::test_memgraph_connection -v -s
 These tests verify that the AI responses are grounded in real knowledge-graph
 data and that the LLM is not hallucinating duty rates.
 
-| Test | What it verifies |
-|------|-----------------|
-| `test_memgraph_connection` | Memgraph Aura instance is reachable |
-| `test_vector_index_exists` | `hscode_embedding_index` is ONLINE and populated |
-| `test_retrieval_returns_results` | Vector search returns results for 5 known product queries |
-| `test_context_contains_hs_codes` | Returned context contains real 12-digit HS codes |
-| `test_context_contains_tariff_data` | Tariff nodes (CD, RD, ST …) are linked and appear in context |
-| `test_llm_response_cites_graph_hs_code` | LLM reply cites an HS code that was in the retrieved context |
+| Test                                               | What it verifies                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| `test_memgraph_connection`                         | Memgraph Aura instance is reachable                                  |
+| `test_vector_index_exists`                         | `hscode_embedding_index` is ONLINE and populated                     |
+| `test_retrieval_returns_results`                   | Vector search returns results for 5 known product queries            |
+| `test_context_contains_hs_codes`                   | Returned context contains real 12-digit HS codes                     |
+| `test_context_contains_tariff_data`                | Tariff nodes (CD, RD, ST …) are linked and appear in context         |
+| `test_llm_response_cites_graph_hs_code`            | LLM reply cites an HS code that was in the retrieved context         |
 | `test_llm_refuses_to_hallucinate_on_empty_context` | LLM says "not found" for nonsense queries instead of inventing rates |
 
 ### Common test failures and fixes
 
-| Failure message | Cause | Fix |
-|-----------------|-------|-----|
-| `Memgraph connection failed` | Wrong credentials or Aura instance is paused | Check `knowledge_graph/.env`, wake up the Aura instance |
-| `Index 'hscode_embedding_index' not found` | Knowledge graph not ingested | Run `python knowledge_graph/ingest.py` |
-| `No Tariff nodes exist` | Tariff ingestion step was skipped | Re-run `ingest.py` — all steps run by default |
-| `LLM response contains NO HS code from context` | LLM ignoring context | Check system prompt in `agent/prompts.py` |
-| `LLM did NOT refuse on nonsense query` | Prompt too permissive | Tighten rule #5 in `agent/prompts.py` |
+| Failure message                                 | Cause                                        | Fix                                                     |
+| ----------------------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| `Memgraph connection failed`                    | Wrong credentials or Aura instance is paused | Check `knowledge_graph/.env`, wake up the Aura instance |
+| `Index 'hscode_embedding_index' not found`      | Knowledge graph not ingested                 | Run `python knowledge_graph/ingest.py`                  |
+| `No Tariff nodes exist`                         | Tariff ingestion step was skipped            | Re-run `ingest.py` — all steps run by default           |
+| `LLM response contains NO HS code from context` | LLM ignoring context                         | Check system prompt in `agent/prompts.py`               |
+| `LLM did NOT refuse on nonsense query`          | Prompt too permissive                        | Tighten rule #5 in `agent/prompts.py`                   |
 
 ---
 
@@ -228,11 +230,11 @@ POST /v1/chat
       │
       └─ generate node
            └─ system prompt + context + conversation history
-           └─ ChatOpenAI gpt-4o-mini (streaming=True)
+           └─ ChatOpenAI gpt-5.4 (streaming=True)
            └─ tokens streamed back as SSE events
 ```
 
 The LLM is instructed to **only** cite duty rates that appear verbatim in
-the retrieved context.  If retrieval returns nothing it must say so rather
+the retrieved context. If retrieval returns nothing it must say so rather
 than guessing — this is enforced by the system prompt in `agent/prompts.py`
 and verified by `test_llm_refuses_to_hallucinate_on_empty_context`.

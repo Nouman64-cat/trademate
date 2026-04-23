@@ -1383,12 +1383,12 @@ def _get_llm() -> ChatOpenAI:
         if not api_key:
             raise EnvironmentError("OPENAI_API_KEY must be set in .env")
         _llm = ChatOpenAI(
-            model="gpt-4o-mini",
+            model="gpt-5.4",
             openai_api_key=api_key,
             temperature=0.1,   # low temperature for factual tariff data
             streaming=True,
         )
-        logger.info("LLM singleton initialised (gpt-4o-mini, streaming=True)")
+        logger.info("LLM singleton initialised (gpt-5.4, streaming=True)")
     return _llm
 
 
@@ -1551,12 +1551,12 @@ def _get_router_llm() -> ChatOpenAI:
         if not api_key:
             raise EnvironmentError("OPENAI_API_KEY must be set in .env")
         _router_llm = ChatOpenAI(
-            model="gpt-4o-mini",
+            model="gpt-5.4",
             openai_api_key=api_key,
             temperature=0.0,   # deterministic routing
             streaming=False,   # no streaming needed for routing
         )
-        logger.info("Router LLM initialised (gpt-4o-mini, streaming=False)")
+        logger.info("Router LLM initialised (gpt-5.4, streaming=False)")
     return _router_llm
 
 

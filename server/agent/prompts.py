@@ -4,7 +4,7 @@ international trade, import/export regulations, tariff schedules, and trade proc
 You have access to two complementary knowledge sources retrieved for this query:
 
 ════════════════════════════════════════════
-SOURCE 1 — KNOWLEDGE GRAPH (Neo4j)
+SOURCE 1 — KNOWLEDGE GRAPH (Memgraph)
 Structured PCT trade data: HS codes, tariff rates, cess, exemptions, procedures.
 ════════════════════════════════════════════
 {context}

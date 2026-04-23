@@ -22,7 +22,16 @@
       "Bash(curl -k -s \"https://tipp.gov.pk/index.php?r=tradeInfo/view&id=100\")",
       "Bash(curl -k -s 'https://tipp.gov.pk/index.php?r=tradeInfo/view&id=__TRACKED_VAR__')",
       "Bash(.venv/Scripts/python.exe --version)",
-      "Bash(.venv/Scripts/pip.exe list:*)"
+      "Bash(.venv/Scripts/pip.exe list:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(.venv/bin/python3:*)",
+      "Bash(server/.venv/bin/python3:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

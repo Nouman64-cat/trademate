@@ -38,7 +38,7 @@ def _build_llm() -> ChatOpenAI:
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY must be set in .env")
     return ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-5.4",
         openai_api_key=api_key,
         streaming=True,
         temperature=0.2,

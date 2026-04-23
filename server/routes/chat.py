@@ -160,7 +160,7 @@ def _get_title_llm() -> ChatOpenAI:
     global _title_llm
     if _title_llm is None:
         api_key = os.getenv("OPENAI_API_KEY")
-        _title_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, streaming=False, openai_api_key=api_key)
+        _title_llm = ChatOpenAI(model="gpt-5.4", temperature=0.3, streaming=False, openai_api_key=api_key)
     return _title_llm
 
 

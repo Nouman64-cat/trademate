@@ -26,7 +26,7 @@ class RecommendationResult(SQLModel, table=True):
         sa_column=Column(SAEnum(RecommendationType, name="recommendation_type_enum"), nullable=False)
     )
     model_version: str = Field(max_length=50)  # "content_based_v1", "collaborative_v2", etc.
-    algorithm_used: str = Field(max_length=100)  # "neo4j_vector", "als", "hybrid"
+    algorithm_used: str = Field(max_length=100)  # "memgraph_vector", "als", "hybrid"
 
     # What was recommended
     recommended_items: str = Field(sa_column=Column(Text, nullable=False))  # JSON array

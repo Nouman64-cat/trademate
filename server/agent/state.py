@@ -12,7 +12,7 @@ class AgentState(TypedDict):
     messages         — full conversation turn list (user + assistant).
                        The add_messages reducer appends new messages rather
                        than replacing the list on every node update.
-    context          — structured trade data retrieved from the Neo4j
+    context          — structured trade data retrieved from the Memgraph
                        knowledge graph (HS codes, tariffs, procedures…).
                        Overwritten on every retrieve call.
     pinecone_context — semantic search results retrieved from Pinecone

@@ -1,13 +1,13 @@
 """
 test_graph_retrieval.py
 =======================
-Verifies that the Neo4j vector retrieval pipeline returns REAL data from the
+Verifies that the Memgraph vector retrieval pipeline returns REAL data from the
 knowledge graph and that the LLM response is grounded in that data rather than
 hallucinated.
 
 What each test proves
 ─────────────────────
-1. Neo4j connection      — driver can reach the Aura instance.
+1. Memgraph connection   — driver can reach the Memgraph instance.
 2. Vector index exists   — hscode_embedding_index is present and populated.
 3. Raw retrieval         — retrieve_trade_context() returns non-empty text for
                            a known product query.
@@ -77,10 +77,10 @@ HS_CODE_PATTERN = re.compile(r"\b\d{12}\b")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test 1 — Neo4j connection
+# Test 1 — Memgraph connection
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_neo4j_connection():
+def test_memgraph_connection():
     """Driver must connect and verify connectivity without raising."""
     driver = _get_driver()
     # verify_connectivity() raises if the DB is unreachable
@@ -104,7 +104,7 @@ def test_vector_index_exists():
         )
         rows = result.data()
 
-    assert rows, f"Vector index '{_INDEX_NAME}' not found in Neo4j."
+    assert rows, f"Vector index '{_INDEX_NAME}' not found in Memgraph."
     idx = rows[0]
     assert idx["state"] == "ONLINE", (
         f"Index '{_INDEX_NAME}' is in state '{idx['state']}', expected ONLINE."
@@ -125,7 +125,7 @@ def test_retrieval_returns_results(query):
     context = retrieve_trade_context(query, top_k=3)
     assert context.strip(), (
         f"retrieve_trade_context() returned empty string for query: {query!r}\n"
-        "Check that Neo4j is running, the index is populated, and OPENAI_API_KEY is set."
+        "Check that Memgraph is running, the index is populated, and OPENAI_API_KEY is set."
     )
     print(f"\n  Query : {query!r}")
     print(f"  Context preview : {context[:200]} …")
@@ -154,7 +154,7 @@ def test_context_contains_hs_codes(query):
 def test_context_contains_tariff_data():
     """At least one query must return context that includes a duty type label."""
 
-    # First check how many Tariff nodes exist at all in Neo4j
+    # First check how many Tariff nodes exist at all in Memgraph
     driver = _get_driver()
     with driver.session() as session:
         tariff_count = session.run("MATCH (t:Tariff) RETURN count(t) AS n").single()["n"]
@@ -166,7 +166,7 @@ def test_context_contains_tariff_data():
     print(f"  Tariff nodes linked     : {linked_count}")
 
     assert tariff_count > 0, (
-        f"No Tariff nodes exist in Neo4j (count={tariff_count}). "
+        f"No Tariff nodes exist in Memgraph (count={tariff_count}). "
         "Run ingest.py to load tariff data — specifically the ingest_tariffs() step."
     )
     assert linked_count > 0, (
@@ -233,7 +233,7 @@ def test_llm_response_cites_graph_hs_code():
     assert context_hs_codes, "Retrieval returned no HS codes — cannot verify grounding."
 
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-5.4",
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0,
     )
@@ -277,7 +277,7 @@ def test_llm_refuses_to_hallucinate_on_empty_context():
     # Context should be empty or irrelevant; we proceed either way.
 
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-5.4",
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0,
     )

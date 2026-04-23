@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["voice"])
 
 _OPENAI_REALTIME_URL = (
-    "wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview"
+    "wss://api.openai.com/v1/realtime?model=gpt-5.4-realtime-preview"
 )
 _SESSION_LIMIT_SECONDS = 60
 

@@ -109,7 +109,7 @@ def process_research(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4",
             messages=[
                 {"role": "system", "content": "You are a trade research analyst expert in Pakistani international trade."},
                 {"role": "user", "content": prompt}

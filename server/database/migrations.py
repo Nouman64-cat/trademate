@@ -31,4 +31,19 @@ def run_migrations():
                 except Exception as e:
                     logger.error("Failed to migrate otp_codes.used: %s", e)
 
+    # --- Migration 2: Add is_admin column to users table ---
+    if "users" in tables:
+        columns = inspector.get_columns("users")
+        column_names = [c["name"] for c in columns]
+
+        if "is_admin" not in column_names:
+            logger.info("Adding is_admin column to users table...")
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE;"))
+                    conn.commit()
+                logger.info("Successfully added is_admin column to users table.")
+            except Exception as e:
+                logger.error("Failed to add is_admin column: %s", e)
+
     # Future migrations can be added here...

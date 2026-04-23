@@ -8,7 +8,7 @@ WS /v1/voice/stream?token=<jwt>
 • Sends session.update from the server (not the client), so TradeMate's four
   tools are registered with the Realtime model.
 • Intercepts response.output_item.done function-call events, runs the actual
-  Python tool (Neo4j / Pinecone / route engine), sends the result back to
+  Python tool (Memgraph / Pinecone / route engine), sends the result back to
   OpenAI, then triggers a new response so the model speaks the answer.
 • Bidirectionally proxies all other messages.
 • Hard 60-second session limit.
@@ -224,7 +224,7 @@ _SESSION_CONFIG = {
 async def _execute_tool(name: str, args_str: str) -> str:
     """
     Look up `name` in the agent's tool registry and invoke it in a thread pool
-    (all tools are synchronous — Neo4j/Pinecone calls are blocking).
+    (all tools are synchronous — Memgraph/Pinecone calls are blocking).
     """
     from agent.bot import _TOOL_MAP  # import here to avoid circular imports at load time
 

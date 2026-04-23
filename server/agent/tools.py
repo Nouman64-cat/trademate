@@ -1,14 +1,14 @@
 """
-tools.py — Neo4j knowledge-graph retrieval for TradeMate.
+tools.py — Memgraph knowledge-graph retrieval for TradeMate.
 
 Responsibilities
 ────────────────
-1. Maintain lazy-initialised singletons for the Neo4j driver and the
+1. Maintain lazy-initialised singletons for the Memgraph driver and the
    OpenAI embeddings model so the expensive setup happens once per process.
 2. Ensure a vector index exists on HSCode.embedding before the first query.
 3. Embed the user query and run a vector similarity search, then expand each
    hit with its related Tariff, Cess, Exemption, and Procedure nodes.
-4. Degrade gracefully — if Neo4j or OpenAI is unavailable the retrieve
+4. Degrade gracefully — if Memgraph or OpenAI is unavailable the retrieve
    function logs a warning and returns an empty string so the LLM can still
    answer from its training knowledge.
 """
@@ -20,7 +20,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# Knowledge-graph credentials (Neo4j + OpenAI) live in knowledge_graph/.env —
+# Knowledge-graph credentials (Memgraph + OpenAI) live in knowledge_graph/.env —
 # load from there so we have a single source of truth.
 _KG_ENV = Path(__file__).parent.parent.parent / "knowledge_graph" / ".env"
 load_dotenv(dotenv_path=_KG_ENV, override=False)
@@ -40,17 +40,17 @@ def _get_driver():
     if _driver is None:
         from neo4j import GraphDatabase  # imported lazily to avoid hard dep at import time
 
-        uri = os.getenv("NEO4J_URI")
-        user = os.getenv("NEO4J_USERNAME")
-        password = os.getenv("NEO4J_PASSWORD")
+        uri = os.getenv("MEMGRAPH_URI")
+        user = os.getenv("MEMGRAPH_USERNAME")
+        password = os.getenv("MEMGRAPH_PASSWORD")
 
         if not uri:
-            raise EnvironmentError("NEO4J_URI must be set in .env")
+            raise EnvironmentError("MEMGRAPH_URI must be set in .env")
 
         auth = (user, password) if user and password else None
         _driver = GraphDatabase.driver(uri, auth=auth)
         _driver.verify_connectivity()
-        logger.info("Neo4j driver initialised → %s", uri)
+        logger.info("Memgraph driver initialised → %s", uri)
 
     return _driver
 
@@ -165,7 +165,7 @@ ORDER BY score DESC
 
 
 def _format_record(record: dict) -> str:
-    """Convert a single Neo4j record into a readable text block."""
+    """Convert a single Memgraph record into a readable text block."""
     source = record.get("source", "UNKNOWN")
 
     lines = [
@@ -252,7 +252,7 @@ def _get_pinecone_embeddings():
     """
     Pinecone uses text-embedding-3-small (1536 dims).
     We keep a separate singleton so it doesn't conflict with the
-    Neo4j embeddings model (text-embedding-3-small, 1536 dims).
+    Memgraph embeddings model (text-embedding-3-small, 1536 dims).
     """
     from langchain_openai import OpenAIEmbeddings
 
@@ -323,7 +323,7 @@ def retrieve_pinecone_context(query: str, top_k: int = 5) -> str:
 
 def retrieve_trade_context(query: str, top_k: int = 5) -> str:
     """
-    Embed *query*, search the Neo4j vector index, and return a formatted
+    Embed *query*, search the Memgraph vector index, and return a formatted
     context string.  Returns an empty string on any error so the graph node
     can fall back gracefully to LLM-only answering.
     """
@@ -346,12 +346,12 @@ def retrieve_trade_context(query: str, top_k: int = 5) -> str:
 
         blocks = [_format_record(r) for r in records]
         logger.info(
-            "Retrieved %d HS code(s) from Neo4j for query: %r", len(blocks), query[:80]
+            "Retrieved %d HS code(s) from Memgraph for query: %r", len(blocks), query[:80]
         )
         return "\n\n---\n\n".join(blocks)
 
     except Exception as exc:
         logger.warning(
-            "Neo4j retrieval failed — falling back to LLM-only mode. Error: %s", exc
+            "Memgraph retrieval failed — falling back to LLM-only mode. Error: %s", exc
         )
         return ""

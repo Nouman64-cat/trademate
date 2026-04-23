@@ -16,6 +16,7 @@ from routes.chat import router as chat_router
 from routes.conversations import router as conversations_router
 from routes.routes import router as routes_router
 from routes.voice import router as voice_router
+from routes.recommendations import router as recommendations_router
 
 
 @asynccontextmanager
@@ -42,6 +43,7 @@ app.include_router(chat_router)
 app.include_router(conversations_router)
 app.include_router(routes_router)
 app.include_router(voice_router)
+app.include_router(recommendations_router)
 
 
 @app.get("/")

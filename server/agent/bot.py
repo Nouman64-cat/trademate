@@ -31,7 +31,7 @@ The agent loop (LangGraph prebuilt ReAct):
 
 Security Guarantees
 ───────────────────
-  1. READ_ACCESS on every Neo4j session — the agent cannot write or delete.
+  1. READ_ACCESS on every Memgraph session — the agent cannot write or delete.
   2. Every Cypher query is parameterized ($param). User input never touches
      the query string itself, preventing Cypher injection.
   3. HS / HTS code inputs are validated with strict regexes before the
@@ -54,12 +54,18 @@ route_widget_ctx: contextvars.ContextVar[list | None] = contextvars.ContextVar(
     "route_widget_ctx", default=None
 )
 
+request_ctx: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "request_ctx", default=None
+)
+
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
+from models.interaction import InteractionType
+from services.interaction_service import log_interaction
 
 # ── env loading ────────────────────────────────────────────────────────────────
 # Credentials live in knowledge_graph/.env; server/.env may hold overrides.
@@ -88,7 +94,7 @@ _US_CODE_RE = re.compile(r"^\d{4}(?:\.\d{2}){1,3}$|^\d{6,10}$")
 
 # ── Cypher query templates ─────────────────────────────────────────────────────
 #
-# IMPORTANT: every $param is sent via the Neo4j driver's parameter dict.
+# IMPORTANT: every $param is sent via the Memgraph driver's parameter dict.
 # User-supplied strings NEVER appear in the query text itself.
 
 # --- Pakistan ----------------------------------------------------------------
@@ -206,7 +212,7 @@ RETURN
 
 def _get_driver():
     """
-    Return the shared Neo4j driver.
+    Return the shared Memgraph driver.
 
     READ_ACCESS is enforced per-session inside each retrieval helper so that
     the agent cannot write to or delete from the database.
@@ -218,17 +224,17 @@ def _get_driver():
     if _driver is None:
         from neo4j import GraphDatabase
 
-        uri      = os.getenv("NEO4J_URI")
-        user     = os.getenv("NEO4J_USERNAME")
-        password = os.getenv("NEO4J_PASSWORD")
+        uri      = os.getenv("MEMGRAPH_URI")
+        user     = os.getenv("MEMGRAPH_USERNAME")
+        password = os.getenv("MEMGRAPH_PASSWORD")
 
         if not uri:
-            raise EnvironmentError("NEO4J_URI must be set in .env")
+            raise EnvironmentError("MEMGRAPH_URI must be set in .env")
 
         auth = (user, password) if user and password else None
         _driver = GraphDatabase.driver(uri, auth=auth)
         _driver.verify_connectivity()
-        logger.info("Neo4j driver initialised → %s", uri)
+        logger.info("Memgraph driver initialised → %s", uri)
 
     return _driver
 
@@ -283,22 +289,16 @@ def _ensure_index() -> None:
     try:
         driver = _get_driver()
         with driver.session() as session:
-            session.run(
-                f"""
-                CREATE VECTOR INDEX ON :HSCode(embedding)
-                WITH CONFIG {{
-                    "dimension": {_EMBED_DIMS},
-                    "capacity": 500000,
-                    "metric": "cos"
-                }}
-                """
-            )
-        logger.info("Vector index '%s' created.", _INDEX_NAME)
+            # Memgraph syntax for creating an index. 
+            # Note: Vector search in Memgraph is often handled by MAGE 
+            # but we ensure the base index exists.
+            session.run("CREATE INDEX ON :HSCode(embedding);")
+        logger.info("Memgraph index created on :HSCode(embedding).")
     except Exception as exc:
         if "already exists" in str(exc).lower() or "exist" in str(exc).lower():
-            logger.info("Vector index '%s' already exists — skipping.", _INDEX_NAME)
+            logger.info("Memgraph index already exists — skipping.")
         else:
-            logger.warning("Could not create vector index: %s", exc)
+            logger.warning("Could not create Memgraph index: %s", exc)
 
 
 # ── formatters ────────────────────────────────────────────────────────────────
@@ -422,10 +422,10 @@ def _format_us_results(records: list[dict]) -> str:
 
 def _read_session():
     """
-    Open a read-only Neo4j session.
+    Open a read-only Memgraph session.
 
     READ_ACCESS is the correct place to enforce read-only behaviour in the
-    neo4j Python driver — it is a *session* configuration key, not a driver
+    memgraph Python driver — it is a *session* configuration key, not a driver
     constructor key.
     """
     from neo4j import READ_ACCESS
@@ -551,7 +551,7 @@ def _text_search_pk(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
         with _read_session() as session:
             records = session.run(_PK_TEXT_CYPHER, keyword=word, top_k=top_k).data()
             if records:
-                logger.info("[NEO4J → PK] Text fallback matched on keyword %r", word)
+                logger.info("[MEMGRAPH → PK] Text fallback matched on keyword %r", word)
                 return records
     return []
 
@@ -569,7 +569,7 @@ def _pk_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
             ).data()
     except Exception as exc:
         if "no procedure" in str(exc).lower() or "vector_search" in str(exc).lower():
-            logger.warning("[NEO4J → PK] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
+            logger.warning("[MEMGRAPH → PK] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
             return _text_search_pk(query, top_k)
         raise
 
@@ -605,7 +605,7 @@ def _text_search_us(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
     with _read_session() as session:
         records = session.run(_US_TEXT_FULLPATH_CYPHER, keyword=kw, top_k=top_k).data()
         if records:
-            logger.info("[NEO4J → US] Text fallback matched full phrase in full_path: %r", kw)
+            logger.info("[MEMGRAPH → US] Text fallback matched full phrase in full_path: %r", kw)
             return records
 
     # Pass 3: individual significant words in description only (longest/most specific first)
@@ -617,7 +617,7 @@ def _text_search_us(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
         with _read_session() as session:
             records = session.run(_US_TEXT_CYPHER, keyword=word, top_k=top_k).data()
             if records:
-                logger.info("[NEO4J → US] Text fallback matched on keyword %r", word)
+                logger.info("[MEMGRAPH → US] Text fallback matched on keyword %r", word)
                 return records
 
     # Pass 4: individual significant words in full_path_description
@@ -625,7 +625,7 @@ def _text_search_us(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
         with _read_session() as session:
             records = session.run(_US_TEXT_FULLPATH_CYPHER, keyword=word, top_k=top_k).data()
             if records:
-                logger.info("[NEO4J → US] Text fallback matched full_path keyword %r", word)
+                logger.info("[MEMGRAPH → US] Text fallback matched full_path keyword %r", word)
                 return records
 
     return []
@@ -644,7 +644,7 @@ def _us_vector_search(query: str, top_k: int = _VECTOR_TOP_K) -> list[dict]:
             ).data()
     except Exception as exc:
         if "no procedure" in str(exc).lower() or "vector_search" in str(exc).lower():
-            logger.warning("[NEO4J → US] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
+            logger.warning("[MEMGRAPH → US] vector_search.search unavailable — falling back to text search. Install memgraph-mage for semantic search.")
             return _text_search_us(query, top_k)
         raise
 
@@ -746,27 +746,40 @@ def search_pakistan_hs_data(query: str) -> str:
     query = query.strip()
     try:
         if _PK_CODE_RE.match(query):
-            logger.info("━━━ [NEO4J → PK] Exact code lookup: '%s'", query)
+            logger.info("━━━ [MEMGRAPH → PK] Exact code lookup: '%s'", query)
             records = _pk_code_lookup(query)
             if not records:
-                logger.info("━━━ [NEO4J → PK] Code not found — falling back to vector search.")
+                logger.info("━━━ [MEMGRAPH → PK] Code not found — falling back to vector search.")
                 records = _pk_vector_search(query)
-                logger.info("━━━ [NEO4J → PK] Vector search complete.")
+                logger.info("━━━ [MEMGRAPH → PK] Vector search complete.")
         else:
-            logger.info("━━━ [NEO4J → PK] Vector search: %r", query[:80])
+            logger.info("━━━ [MEMGRAPH → PK] Vector search: %r", query[:80])
             records = _pk_vector_search(query)
 
             # Retry with trade-terminology expansion if first pass returned nothing
             if not records:
-                logger.info("━━━ [NEO4J → PK] No results — retrying with expanded trade query.")
+                logger.info("━━━ [MEMGRAPH → PK] No results — retrying with expanded trade query.")
                 expanded = _expand_query(query)
                 if expanded != query:
                     records = _pk_vector_search(expanded)
 
         if records:
-            logger.info("━━━ [NEO4J → PK ✔] Returned %d record(s) from Graph DB (Pakistan PCT).", len(records))
+            logger.info("━━━ [MEMGRAPH → PK ✔] Returned %d record(s) from Graph DB (Pakistan PCT).", len(records))
+            
+            # Log interaction
+            ctx = request_ctx.get({})
+            if ctx.get("user_id"):
+                found_codes = [r.get("code") for r in records if r.get("code")]
+                log_interaction(
+                    user_id=ctx["user_id"],
+                    interaction_type=InteractionType.search_hs_code,
+                    conversation_id=ctx.get("conversation_id"),
+                    query=query,
+                    hs_code=found_codes[0] if found_codes else None,
+                    metadata={"found_codes": found_codes, "country": "PK"}
+                )
         else:
-            logger.warning("━━━ [NEO4J → PK ✘] No results found in Pakistan PCT data.")
+            logger.warning("━━━ [MEMGRAPH → PK ✘] No results found in Pakistan PCT data.")
             return (
                 f"NO_RESULTS: The Pakistan PCT database returned no records for '{query}'. "
                 "Tell the user no matching HS code was found and suggest they try a more specific "
@@ -776,11 +789,11 @@ def search_pakistan_hs_data(query: str) -> str:
         return _format_pk_results(records)
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("━━━ [NEO4J → PK ✘] search_pakistan_hs_data failed: %s", exc)
+        logger.warning("━━━ [MEMGRAPH → PK ✘] search_pakistan_hs_data failed: %s", exc)
         return (
             f"Pakistan HS data retrieval failed: {exc}. "
-            "Please ensure Neo4j is running (docker start neo4j-trademate) "
-            "and NEO4J_URI / credentials are correct in knowledge_graph/.env."
+            "Please ensure Memgraph is running (docker start memgraph-trademate) "
+            "and MEMGRAPH_URI / credentials are correct in knowledge_graph/.env."
         )
 
 
@@ -808,27 +821,40 @@ def search_us_hs_data(query: str) -> str:
     query = query.strip()
     try:
         if _US_CODE_RE.match(query):
-            logger.info("━━━ [NEO4J → US] Exact code lookup: '%s'", query)
+            logger.info("━━━ [MEMGRAPH → US] Exact code lookup: '%s'", query)
             records = _us_code_lookup(query)
             if not records:
-                logger.info("━━━ [NEO4J → US] Code not found — falling back to vector search.")
+                logger.info("━━━ [MEMGRAPH → US] Code not found — falling back to vector search.")
                 records = _us_vector_search(query)
-                logger.info("━━━ [NEO4J → US] Vector search complete.")
+                logger.info("━━━ [MEMGRAPH → US] Vector search complete.")
         else:
-            logger.info("━━━ [NEO4J → US] Vector search: %r", query[:80])
+            logger.info("━━━ [MEMGRAPH → US] Vector search: %r", query[:80])
             records = _us_vector_search(query)
 
             # Retry with trade-terminology expansion if first pass returned nothing
             if not records:
-                logger.info("━━━ [NEO4J → US] No results — retrying with expanded trade query.")
+                logger.info("━━━ [MEMGRAPH → US] No results — retrying with expanded trade query.")
                 expanded = _expand_query(query)
                 if expanded != query:
                     records = _us_vector_search(expanded)
 
         if records:
-            logger.info("━━━ [NEO4J → US ✔] Returned %d record(s) from Graph DB (US HTS).", len(records))
+            logger.info("━━━ [MEMGRAPH → US ✔] Returned %d record(s) from Graph DB (US HTS).", len(records))
+            
+            # Log interaction
+            ctx = request_ctx.get({})
+            if ctx.get("user_id"):
+                found_codes = [r.get("hts_code") for r in records if r.get("hts_code")]
+                log_interaction(
+                    user_id=ctx["user_id"],
+                    interaction_type=InteractionType.search_hs_code,
+                    conversation_id=ctx.get("conversation_id"),
+                    query=query,
+                    hs_code=found_codes[0] if found_codes else None,
+                    metadata={"found_codes": found_codes, "country": "US"}
+                )
         else:
-            logger.warning("━━━ [NEO4J → US ✘] No results found in US HTS data.")
+            logger.warning("━━━ [MEMGRAPH → US ✘] No results found in US HTS data.")
             return (
                 f"NO_RESULTS: The US HTS database returned no records for '{query}'. "
                 "Tell the user no matching HTS code was found and suggest they try a more specific "
@@ -838,11 +864,11 @@ def search_us_hs_data(query: str) -> str:
         return _format_us_results(records)
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("━━━ [NEO4J → US ✘] search_us_hs_data failed: %s", exc)
+        logger.warning("━━━ [MEMGRAPH → US ✘] search_us_hs_data failed: %s", exc)
         return (
             f"US HTS data retrieval failed: {exc}. "
-            "Please ensure Neo4j is running (docker start neo4j-trademate) "
-            "and NEO4J_URI / credentials are correct in knowledge_graph/.env."
+            "Please ensure Memgraph is running (docker start memgraph-trademate) "
+            "and MEMGRAPH_URI / credentials are correct in knowledge_graph/.env."
         )
 
 
@@ -869,7 +895,7 @@ def search_trade_documents(query: str) -> str:
     - General trade procedures, compliance requirements, or policy context
     - Any question where background document context would help
 
-    This tool complements the Neo4j tools — it searches unstructured document
+    This tool complements the Memgraph tools — it searches unstructured document
     chunks rather than structured HS code / tariff data.
 
     DO NOT use this as a substitute for search_pakistan_hs_data or
@@ -916,6 +942,19 @@ def search_trade_documents(query: str) -> str:
             return "No usable document content found."
 
         logger.info("━━━ [PINECONE ✔] Returned %d document chunk(s) from Vector DB.", len(blocks))
+        
+        # Log interaction
+        ctx = request_ctx.get({})
+        if ctx.get("user_id"):
+            found_docs = [m.get("id") for m in matches if m.get("id")]
+            log_interaction(
+                user_id=ctx["user_id"],
+                interaction_type=InteractionType.document_retrieval,
+                conversation_id=ctx.get("conversation_id"),
+                query=query,
+                document_id=found_docs[0] if found_docs else None,
+                metadata={"found_docs": found_docs}
+            )
         return "\n\n---\n\n".join(blocks)
 
     except Exception as exc:  # noqa: BLE001
@@ -1001,7 +1040,7 @@ def evaluate_shipping_routes(
     carrier options. An interactive route widget will be shown to the user.
 
     DO NOT use this tool for HS code lookups, tariff rates, or trade policy questions —
-    use the Neo4j tools for those.
+    use the Memgraph tools for those.
 
     CRITICAL: always pass hs_code (the 2-digit chapter). Without it the duty defaults
     to 5% and the widget will display an inaccurate rate. See the hs_code field
@@ -1010,6 +1049,10 @@ def evaluate_shipping_routes(
     try:
         from schemas.routes import RouteEvaluationRequest
         from services.route_engine import evaluate_routes
+
+        ctx = request_ctx.get({})
+        user_id = ctx.get("user_id")
+        conversation_id = ctx.get("conversation_id")
 
         req = RouteEvaluationRequest(
             origin_city=origin_city,
@@ -1022,13 +1065,28 @@ def evaluate_shipping_routes(
             container_count=max(1, int(container_count)),
             cost_weight=cost_weight,
         )
-        result = evaluate_routes(req)
+        result = evaluate_routes(
+            req, 
+            user_id=user_id, 
+            conversation_id=conversation_id
+        )
 
         # Push full result into the per-request widget store so chat.py can
         # emit a widget SSE event after the text stream completes.
         store = route_widget_ctx.get(None)
         if store is not None:
             store.append(result.model_dump())
+            
+        # Log interaction
+        if user_id:
+            log_interaction(
+                user_id=user_id,
+                interaction_type=InteractionType.route_evaluation,
+                conversation_id=conversation_id,
+                query=f"{origin_city} to {destination_city}",
+                route_id=result.recommended.get("balanced"),
+                metadata={"origin": origin_city, "destination": destination_city, "cargo_type": cargo_type}
+            )
 
         # Return a concise human-readable summary for the LLM to use.
         def _fmt(n: float) -> str:
@@ -1105,7 +1163,7 @@ Answer DIRECTLY from your expertise (no tools) when:
 • Product / commodity query (no country specified) → call BOTH search_pakistan_hs_data AND search_us_hs_data.
 • "Pakistan only" query → call search_pakistan_hs_data only.
 • "US only" query → call search_us_hs_data only.
-• Policy / SRO / regulation → call search_trade_documents (alongside Neo4j tools if rates also needed).
+• Policy / SRO / regulation → call search_trade_documents (alongside Memgraph tools if rates also needed).
 • Shipping / freight / logistics → call evaluate_shipping_routes.
 • Air vs sea comparison request where weight IS provided → call evaluate_shipping_routes
   TWICE in sequence: first with cargo_type="AIR" and cargo_weight_kg set, then again with
@@ -1133,7 +1191,7 @@ Answer DIRECTLY from your expertise (no tools) when:
     — Only omit hs_code when the product is truly unspecified (e.g. "general cargo").
 • Multi-destination comparison (e.g. "LA vs New York") → call evaluate_shipping_routes once
   per destination. Do NOT reuse numbers from earlier in the conversation.
-• Cross-country comparison → call BOTH Neo4j tools.
+• Cross-country comparison → call BOTH Memgraph tools.
 • ONLY cite HS codes and tariff rates that appear verbatim in tool results. Never invent or estimate.
   If a tool result shows NO General Rate of Duty (the field is absent or empty), do NOT invent a rate.
   Instead, note that the heading-level code has no single rate (rates vary by sub-item) and list
@@ -1385,7 +1443,7 @@ STEP 1 — Shipping
     → always include "evaluate_shipping_routes"
 
 STEP 2 — HS Codes / Tariffs / Duties / Classifications / Products
-  These queries need Neo4j tools. Apply ONE of these sub-rules:
+  These queries need Memgraph tools. Apply ONE of these sub-rules:
 
   A. User says "Pakistan only" OR uses ANY of these signals: "in Pakistan", "Pakistani",
        "PCT", "Pakistan customs", "Pakistan tariff", "Pakistan duty", "Pakistan taxes":
@@ -1423,11 +1481,11 @@ STEP 4 — Policy / Documents / General Trade Procedures
    "how to get an NTN", "DTRE scheme", "EDF form", "Pakistan trade agreements",
    "what is the process to register as an exporter", "what documents are required to import/export"):
     → include "search_trade_documents"
-  Also include alongside Neo4j tools when policy context would enrich the answer.
+  Also include alongside Memgraph tools when policy context would enrich the answer.
 
 CRITICAL OVERRIDE RULES (apply before all steps above):
   • Any query asking for a SPECIFIC rate (MFN rate, Column 2 rate, special rate, general duty rate)
-    on a SPECIFIC product MUST call the appropriate Neo4j tool — even if it mentions rate types
+    on a SPECIFIC product MUST call the appropriate Memgraph tool — even if it mentions rate types
     like "Column 2" which sound like general concepts. If the product is for the US → search_us_hs_data.
   • Any query about importing/exporting a specific product (vehicles, cars, motorcycles, electronics,
     food, etc.) into/from Pakistan → MUST call search_pakistan_hs_data for duty data.

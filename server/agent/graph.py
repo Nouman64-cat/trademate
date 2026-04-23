@@ -5,7 +5,7 @@ Graph topology
 ──────────────
     START ──► retrieve ──► generate ──► END
 
-• retrieve  — embeds the latest user message, queries Neo4j, and writes the
+• retrieve  — embeds the latest user message, queries Memgraph, and writes the
               text results into state["context"].
 • generate  — injects the system prompt (with context) and calls ChatOpenAI,
               appending the assistant reply to state["messages"].
@@ -61,7 +61,7 @@ def _get_llm() -> ChatOpenAI:
 def retrieve_node(state: AgentState) -> dict:
     """
     Pull the latest human message from the conversation, embed it, and
-    retrieve the top-k matching HS code records from Neo4j.
+    retrieve the top-k matching HS code records from Memgraph.
 
     Returns a partial state update: {"context": <retrieved text>}.
     """
@@ -69,7 +69,7 @@ def retrieve_node(state: AgentState) -> dict:
     query: str = last_msg.content if isinstance(last_msg.content, str) else ""
 
     logger.info("━━━ [QUERY] %r", query[:120])
-    logger.info("━━━ [SOURCE 1/2] Querying Neo4j (Graph DB) …")
+    logger.info("━━━ [SOURCE 1/2] Querying Memgraph (Graph DB) …")
     context = retrieve_trade_context(query)
 
     if context:
@@ -78,11 +78,11 @@ def retrieve_node(state: AgentState) -> dict:
         pk_count = context.count("Source      : PK")
         us_count = context.count("Source      : US")
         logger.info(
-            "━━━ [NEO4J ✔] Returned %d record(s)  [PK: %d | US: %d]",
+            "━━━ [MEMGRAPH ✔] Returned %d record(s)  [PK: %d | US: %d]",
             record_count, pk_count, us_count,
         )
     else:
-        logger.warning("━━━ [NEO4J ✘] No results returned from Neo4j.")
+        logger.warning("━━━ [MEMGRAPH ✘] No results returned from Memgraph.")
 
     return {"context": context}
 
@@ -123,13 +123,13 @@ def generate_node(state: AgentState) -> dict:
     context = state.get("context") or ""
     pinecone_context = state.get("pinecone_context") or ""
 
-    neo4j_hit = bool(context)
+    memgraph_hit = bool(context)
     pinecone_hit = bool(pinecone_context)
 
-    if neo4j_hit and pinecone_hit:
-        sources_used = "Neo4j (Graph DB) + Pinecone (Vector DB)"
-    elif neo4j_hit:
-        sources_used = "Neo4j (Graph DB) only"
+    if memgraph_hit and pinecone_hit:
+        sources_used = "Memgraph (Graph DB) + Pinecone (Vector DB)"
+    elif memgraph_hit:
+        sources_used = "Memgraph (Graph DB) only"
     elif pinecone_hit:
         sources_used = "Pinecone (Vector DB) only"
     else:
@@ -175,7 +175,7 @@ _compiled_graph = None
 
 def get_graph():
     """
-    Return the compiled LangGraph agent.  On the first call the Neo4j vector
+    Return the compiled LangGraph agent.  On the first call the Memgraph vector
     index is verified / created and the graph is compiled.
     """
     global _compiled_graph

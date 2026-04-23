@@ -1,7 +1,7 @@
 # TradeMate — Server
 
 FastAPI backend for TradeMate.  Handles authentication, onboarding, and the
-AI-powered chat endpoint that queries a Neo4j knowledge graph and streams
+AI-powered chat endpoint that queries a Memgraph knowledge graph and streams
 responses via Server-Sent Events (SSE).
 
 ---
@@ -27,7 +27,7 @@ server/
 │   ├── nodes.py            # Node functions (retrieve, generate)
 │   ├── prompts.py          # System prompt for TradeMate
 │   ├── state.py            # AgentState TypedDict
-│   └── tools.py            # Neo4j vector retrieval
+│   └── tools.py            # Memgraph vector retrieval
 ├── database/
 │   └── database.py         # SQLAlchemy engine + session
 ├── models/
@@ -41,7 +41,7 @@ server/
 ├── security/
 │   └── security.py         # JWT creation/decoding, Argon2 password hashing
 ├── tests/
-│   └── test_graph_retrieval.py   # Neo4j + LLM grounding tests
+│   └── test_graph_retrieval.py   # Memgraph + LLM grounding tests
 ├── main.py                 # FastAPI app entry point
 ├── .env.example            # Environment variable template
 └── README.md               # This file
@@ -55,7 +55,7 @@ server/
 |-------------|---------|
 | Python      | 3.11 +  |
 | PostgreSQL  | 14 +    |
-| Neo4j Aura  | 5 +     |
+| Memgraph Aura  | 5 +     |
 
 The knowledge graph must be ingested before the chat endpoint returns useful
 results.  See `knowledge_graph/README.md` or run `knowledge_graph/ingest.py`.
@@ -70,7 +70,7 @@ results.  See `knowledge_graph/README.md` or run `knowledge_graph/ingest.py`.
 pip install fastapi "uvicorn[standard]" sqlmodel psycopg2-binary \
             argon2-cffi pyjwt python-dotenv \
             langchain-openai langgraph langchain-core \
-            neo4j email-validator pytest
+            memgraph email-validator pytest
 ```
 
 ### 2. Create the server `.env` file
@@ -87,18 +87,18 @@ DATABASE_URL=postgresql://user:password@localhost:5432/trademate
 SECRET_KEY=your-random-secret-key-here
 ```
 
-> **Note:** `OPENAI_API_KEY` and the Neo4j credentials (`NEO4J_URI`,
-> `NEO4J_USERNAME`, `NEO4J_PASSWORD`) are read automatically from
+> **Note:** `OPENAI_API_KEY` and the Memgraph credentials (`MEMGRAPH_URI`,
+> `MEMGRAPH_USERNAME`, `MEMGRAPH_PASSWORD`) are read automatically from
 > `knowledge_graph/.env` — you do **not** need to duplicate them here.
 
 ### 3. Verify `knowledge_graph/.env` exists
 
-The chat agent reads Neo4j and OpenAI credentials from this file:
+The chat agent reads Memgraph and OpenAI credentials from this file:
 
 ```
 knowledge_graph/
-└── .env          ← must contain NEO4J_URI, NEO4J_USERNAME,
-                     NEO4J_PASSWORD, OPENAI_API_KEY
+└── .env          ← must contain MEMGRAPH_URI, MEMGRAPH_USERNAME,
+                     MEMGRAPH_PASSWORD, OPENAI_API_KEY
 ```
 
 ---
@@ -118,7 +118,7 @@ Interactive API docs (Swagger UI): `http://localhost:8000/docs`
 
 On first startup the server will:
 - Create all database tables automatically.
-- Create the Neo4j vector index (`hscode_embedding_index`) if it does not exist.
+- Create the Memgraph vector index (`hscode_embedding_index`) if it does not exist.
 
 ---
 
@@ -181,7 +181,7 @@ python -m pytest tests/ -v
 python -m pytest tests/test_graph_retrieval.py -v
 
 # Run a single test with printed output
-python -m pytest tests/test_graph_retrieval.py::test_neo4j_connection -v -s
+python -m pytest tests/test_graph_retrieval.py::test_memgraph_connection -v -s
 ```
 
 ### Test suite — `test_graph_retrieval.py`
@@ -191,7 +191,7 @@ data and that the LLM is not hallucinating duty rates.
 
 | Test | What it verifies |
 |------|-----------------|
-| `test_neo4j_connection` | Neo4j Aura instance is reachable |
+| `test_memgraph_connection` | Memgraph Aura instance is reachable |
 | `test_vector_index_exists` | `hscode_embedding_index` is ONLINE and populated |
 | `test_retrieval_returns_results` | Vector search returns results for 5 known product queries |
 | `test_context_contains_hs_codes` | Returned context contains real 12-digit HS codes |
@@ -203,7 +203,7 @@ data and that the LLM is not hallucinating duty rates.
 
 | Failure message | Cause | Fix |
 |-----------------|-------|-----|
-| `Neo4j connection failed` | Wrong credentials or Aura instance is paused | Check `knowledge_graph/.env`, wake up the Aura instance |
+| `Memgraph connection failed` | Wrong credentials or Aura instance is paused | Check `knowledge_graph/.env`, wake up the Aura instance |
 | `Index 'hscode_embedding_index' not found` | Knowledge graph not ingested | Run `python knowledge_graph/ingest.py` |
 | `No Tariff nodes exist` | Tariff ingestion step was skipped | Re-run `ingest.py` — all steps run by default |
 | `LLM response contains NO HS code from context` | LLM ignoring context | Check system prompt in `agent/prompts.py` |
@@ -222,7 +222,7 @@ POST /v1/chat
       │
       ├─ retrieve node
       │    └─ embed user message (OpenAI text-embedding-3-small)
-      │    └─ vector search Neo4j (top-5 HS codes)
+      │    └─ vector search Memgraph (top-5 HS codes)
       │    └─ expand with Tariff, Cess, Exemption, Procedure nodes
       │    └─ write formatted text → state["context"]
       │

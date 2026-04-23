@@ -13,6 +13,12 @@ def create_db_tables():
     import models.user  # noqa: F401
     import models.conversation  # noqa: F401
     import models.otp  # noqa: F401
+    import models.interaction  # noqa: F401
+    import models.recommendation  # noqa: F401
+    import models.user_preference  # noqa: F401
+    import models.route_evaluation_history  # noqa: F401
+    import models.model_metadata  # noqa: F401
+    import models.ab_test  # noqa: F401
     SQLModel.metadata.create_all(engine)
     
     # Run manual migrations for schema changes not handled by create_all

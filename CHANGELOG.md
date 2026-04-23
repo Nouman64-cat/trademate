@@ -1,5 +1,20 @@
 # CHANGELOG
 
+### v6.4.0 - 04/23/2026
+#### Migrated
+- Completed infrastructure migration from Neo4j to **Memgraph**, including driver initialization and connection logic.
+- Updated environment variables (`MEMGRAPH_*`) across all services and config files.
+
+#### Fixed
+- Resolved Cypher query ordering constraints (`MATCH` after `OPTIONAL MATCH`) for full Memgraph compatibility.
+- Fixed `UserInteraction` schema to support 20-character international HS codes (PostgreSQL migration).
+- Resolved attribute mapping bugs in `RouteRecommender` for carrier data and port identifiers.
+
+#### Enhanced
+- Improved HS code and cargo value extraction in chat with robust regex patterns that filter out quantities and commas.
+- Enabled prefix-based matching for HS recommendations to support 4, 6, and 12-digit codes.
+- Fully integrated all 4 recommendation layers (HS, Document, Route, and Tariff) into the live chat stream.
+
 ### v6.3.0
 #### Added 
 

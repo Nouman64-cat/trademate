@@ -48,7 +48,7 @@ def evaluate(
         logger.info("[ROUTES] user_id=%d  %s→%s  %s  $%.0f",
                     user_id, body.origin_city, body.destination_city,
                     body.cargo_type, body.cargo_value_usd)
-        return evaluate_routes(body)
+        return evaluate_routes(body, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

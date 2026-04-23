@@ -31,7 +31,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field as PydField
 from sqlmodel import Session, select
 
-from agent.bot import get_bot, route_widget_ctx
+from agent.bot import get_bot, route_widget_ctx, request_ctx
 from database.database import engine
 from models.conversation import Conversation, Message
 from schemas.chat import ChatRequest
@@ -217,6 +217,11 @@ async def _stream_agent(
         # Per-request widget store: evaluate_shipping_routes tool appends here
         widget_store: list = []
         token = route_widget_ctx.set(widget_store)
+        
+        ctx_token = request_ctx.set({
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+        })
 
         async for chunk, metadata in graph.astream(initial_state, stream_mode="messages"):
             # Track tool calls for logging + persistence
@@ -239,8 +244,9 @@ async def _stream_agent(
                     "conversation_id": conversation_id,
                 })
 
-        # Restore context var
+        # Restore context vars
         route_widget_ctx.reset(token)
+        request_ctx.reset(ctx_token)
 
         # Persist the full assistant reply
         full_reply = "".join(reply_chunks)
@@ -271,6 +277,208 @@ async def _stream_agent(
                 "message_id": assistant_message_id,
                 "conversation_id": conversation_id,
             })
+
+            # ── Recommendation System Integration (Phase 2) ──────────────────────
+            # Generate personalized recommendations based on conversation context
+
+            # 1. Document Recommendations (if conversation about compliance/regulations)
+            try:
+                from services.document_recommender import DocumentRecommender
+
+                # Build conversation context for document recommender
+                with Session(engine) as session:
+                    recent_msgs = session.exec(
+                        select(Message)
+                        .where(Message.conversation_id == conversation_id)
+                        .order_by(Message.created_at.desc())
+                        .limit(5)
+                    ).all()
+
+                    conversation_context = [
+                        {"role": msg.role, "content": msg.content}
+                        for msg in reversed(recent_msgs)
+                    ]
+
+                doc_recommender = DocumentRecommender()
+                doc_recs, doc_rec_id = doc_recommender.recommend(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    conversation_context=conversation_context,
+                    top_k=3
+                )
+
+                if doc_recs:
+                    yield _sse({
+                        "type": "document_recommendations",
+                        "recommendations": [r.model_dump() for r in doc_recs],
+                        "recommendation_id": doc_rec_id,
+                        "conversation_id": conversation_id,
+                    })
+                    logger.info("━━━ [REC] Sent %d document recommendations", len(doc_recs))
+
+            except Exception as exc:
+                logger.warning("━━━ [REC] Document recommendations failed: %s", exc)
+
+            # 2. HS Code Recommendations (if user searched HS codes)
+            if any(tool in tools_called for tool in ["search_pakistan_hs_data", "search_us_hs_data"]):
+                try:
+                    from services.hs_code_recommender import HSCodeRecommender
+
+                    # Extract recently searched HS codes from interaction history
+                    context_codes: list[str] = []
+                    with Session(engine) as session:
+                        from models.interaction import UserInteraction, InteractionType
+                        recent_searches = session.exec(
+                            select(UserInteraction.hs_code)
+                            .where(
+                                UserInteraction.user_id == user_id,
+                                UserInteraction.interaction_type == InteractionType.search_hs_code,
+                                UserInteraction.hs_code.is_not(None)
+                            )
+                            .order_by(UserInteraction.created_at.desc())
+                            .limit(5)
+                        ).all()
+                        context_codes = [code for code in recent_searches if code]
+
+                    hs_recommender = HSCodeRecommender()
+                    hs_recs, hs_rec_id = hs_recommender.recommend(
+                        user_id=user_id,
+                        context_hs_codes=context_codes,
+                        conversation_id=conversation_id,
+                        top_k=5
+                    )
+
+                    if hs_recs:
+                        yield _sse({
+                            "type": "hs_code_recommendations",
+                            "recommendations": [r.model_dump() for r in hs_recs],
+                            "recommendation_id": hs_rec_id,
+                            "conversation_id": conversation_id,
+                        })
+                        logger.info("━━━ [REC] Sent %d HS code recommendations", len(hs_recs))
+
+                except Exception as exc:
+                    logger.warning("━━━ [REC] HS code recommendations failed: %s", exc)
+
+            # 3. Tariff Optimization (if specific HS code discussed and cargo value mentioned)
+            # Extract HS code from recent interactions
+            try:
+                from services.tariff_optimizer import TariffOptimizer
+                import re
+
+                # Try to extract HS code from message (regex search first)
+                from agent.bot import _PK_CODE_RE, _US_CODE_RE
+                
+                current_hs_code: str | None = None
+                cargo_value: float | None = None
+                
+                # Check for HS codes in message, avoiding numbers with commas (like 10,000)
+                hs_matches = re.findall(r'\b\d{4}(?:\.\d{2})+\b|\b\d{6,12}\b', message)
+                if hs_matches:
+                    current_hs_code = hs_matches[0].replace('.', '')
+                else:
+                    # Extract from recent interactions if no match in message
+                    with Session(engine) as session:
+                        from models.interaction import UserInteraction, InteractionType
+                        recent_hs = session.exec(
+                            select(UserInteraction)
+                            .where(
+                                UserInteraction.user_id == user_id,
+                                UserInteraction.conversation_id == conversation_id,
+                                UserInteraction.interaction_type.in_([
+                                    InteractionType.search_hs_code,
+                                    InteractionType.view_hs_code
+                                ])
+                            )
+                            .order_by(UserInteraction.created_at.desc())
+                            .limit(1)
+                        ).first()
+
+                        if recent_hs and recent_hs.hs_code:
+                            current_hs_code = recent_hs.hs_code
+
+                # Try to extract cargo value from message (simple regex)
+                # Look for patterns like "$1000", "1000 USD", "value of 1000"
+                value_patterns = [
+                    r'\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',  # $1,000.00
+                    r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|usd|dollars?)',  # 1000 USD
+                    r'value\s+of\s+(\d+(?:,\d{3})*(?:\.\d{2})?)',  # value of 1000
+                    r'value\s+of\s+\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)', # value of $1000
+                ]
+                for pattern in value_patterns:
+                    match = re.search(pattern, message, re.IGNORECASE)
+                    if match:
+                        try:
+                            cargo_value = float(match.group(1).replace(',', ''))
+                            break
+                        except ValueError:
+                            pass
+
+                # Only recommend tariff alternatives if we have both HS code and value
+                if current_hs_code and cargo_value and cargo_value > 0:
+                    optimizer = TariffOptimizer()
+                    alternatives, tariff_rec_id = optimizer.find_alternatives(
+                        hs_code=current_hs_code,
+                        cargo_value_usd=cargo_value,
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        source="PK",
+                        max_alternatives=3
+                    )
+
+                    if alternatives:
+                        yield _sse({
+                            "type": "tariff_alternatives",
+                            "alternatives": [a.model_dump() for a in alternatives],
+                            "recommendation_id": tariff_rec_id,
+                            "conversation_id": conversation_id,
+                        })
+                        logger.info("━━━ [REC] Sent %d tariff alternatives", len(alternatives))
+
+            except Exception as exc:
+                logger.warning("━━━ [REC] Tariff optimization failed: %s", exc)
+
+            # 4. Route Recommendations (if route evaluation tool was called)
+            if "evaluate_shipping_routes" in tools_called and widget_store:
+                try:
+                    from services.route_recommender import RouteRecommender
+
+                    # Extract route parameters from the widget data
+                    # widget_store contains route evaluation results
+                    if widget_store and len(widget_store) > 0:
+                        widget_data = widget_store[0]  # Use first widget data
+
+                        # Extract parameters from widget metadata
+                        origin = widget_data.get("origin_city", "")
+                        destination = widget_data.get("destination_city", "")
+                        cargo_type = widget_data.get("cargo_type", "general")
+                        cargo_value = widget_data.get("cargo_value_usd", 10000)
+                        cost_weight = widget_data.get("cost_weight", 0.5)
+
+                        if origin and destination:
+                            route_recommender = RouteRecommender()
+                            route_recs, route_rec_id = route_recommender.recommend_routes(
+                                user_id=user_id,
+                                origin_city=origin,
+                                destination_city=destination,
+                                cargo_type=cargo_type,
+                                cargo_value_usd=cargo_value,
+                                cost_weight=cost_weight,
+                                conversation_id=conversation_id,
+                                top_k=3
+                            )
+
+                            if route_recs:
+                                yield _sse({
+                                    "type": "route_recommendations",
+                                    "routes": [r.model_dump() for r in route_recs],
+                                    "recommendation_id": route_rec_id,
+                                    "conversation_id": conversation_id,
+                                })
+                                logger.info("━━━ [REC] Sent %d route recommendations", len(route_recs))
+
+                except Exception as exc:
+                    logger.warning("━━━ [REC] Route recommendations failed: %s", exc)
 
         yield _sse({"type": "done", "conversation_id": conversation_id})
 

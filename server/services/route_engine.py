@@ -18,6 +18,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Optional
 
 from schemas.routes import (
     CostBreakdown,
@@ -367,7 +368,12 @@ def _prefetch_live_rates(
 
 # ── Main evaluation function ───────────────────────────────────────────────────
 
-def evaluate_routes(req: RouteEvaluationRequest) -> RouteEvaluationResponse:
+def evaluate_routes(
+    req: RouteEvaluationRequest,
+    user_id: Optional[int] = None,
+    conversation_id: Optional[str] = None,
+    message_id: Optional[int] = None,
+) -> RouteEvaluationResponse:
     # Validate origin
     inland = _INLAND_ORIGINS.get(req.origin_city)
     if not inland:
@@ -523,7 +529,7 @@ def evaluate_routes(req: RouteEvaluationRequest) -> RouteEvaluationResponse:
         len(results), cheapest_id, fastest_id, balanced_id,
     )
 
-    return RouteEvaluationResponse(
+    response = RouteEvaluationResponse(
         origin_city=req.origin_city,
         destination_city=req.destination_city,
         cargo_type=req.cargo_type,
@@ -543,3 +549,38 @@ def evaluate_routes(req: RouteEvaluationRequest) -> RouteEvaluationResponse:
             "Obtain binding quotes from a licensed freight forwarder before making shipping decisions."
         ),
     )
+
+    # ── Persist to DB ──
+    if user_id:
+        try:
+            from models.route_evaluation_history import RouteEvaluationHistory
+            from database.database import engine
+            from sqlmodel import Session
+            
+            with Session(engine) as session:
+                history = RouteEvaluationHistory(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    origin_city=req.origin_city,
+                    destination_city=req.destination_city,
+                    cargo_type=req.cargo_type,
+                    cargo_value_usd=req.cargo_value_usd,
+                    hs_code=req.hs_code,
+                    cargo_volume_cbm=req.cargo_volume_cbm,
+                    cargo_weight_kg=req.cargo_weight_kg,
+                    container_count=req.container_count,
+                    cost_weight=req.cost_weight,
+                    routes_count=len(results),
+                    cheapest_route_id=cheapest_id,
+                    fastest_route_id=fastest_id,
+                    balanced_route_id=balanced_id,
+                    full_response_json=response.model_dump_json(),
+                )
+                session.add(history)
+                session.commit()
+                logger.info(f"━━━ [DB] Saved route evaluation history for user {user_id}")
+        except Exception as exc:
+            logger.warning(f"━━━ [DB] Failed to save route evaluation history: {exc}")
+
+    return response

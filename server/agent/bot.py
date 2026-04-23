@@ -1741,7 +1741,8 @@ class _RouterAgent:
         if not selected_tools:
             logger.info("━━━ [AGENT] Direct LLM response (no tools).")
             llm = _get_llm()
-            messages = [_BOT_SYSTEM_PROMPT] + list(state.get("messages", []))
+            prompt_content = get_active_prompt("bot_system_prompt", _BOT_SYSTEM_PROMPT_DEFAULT)
+            messages = [SystemMessage(content=prompt_content)] + list(state.get("messages", []))
             async for chunk in llm.astream(messages):
                 yield chunk, {"langgraph_node": "agent"}
             return

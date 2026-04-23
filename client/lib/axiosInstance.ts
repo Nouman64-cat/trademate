@@ -9,7 +9,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:8000";
 // ── Singleton instance ──────────────────────────────────────────────────────
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "69420",
+  },
   timeout: 30_000,
 });
 

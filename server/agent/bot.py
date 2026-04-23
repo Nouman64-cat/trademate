@@ -66,6 +66,9 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 from models.interaction import InteractionType
 from services.interaction_service import log_interaction
+from models.chatbot_prompt import ChatbotPrompt
+from sqlmodel import Session, select
+from database.database import engine
 
 # ── env loading ────────────────────────────────────────────────────────────────
 # Credentials live in knowledge_graph/.env; server/.env may hold overrides.
@@ -1120,9 +1123,34 @@ def evaluate_shipping_routes(
         return f"Route evaluation failed: {exc}"
 
 
-# ── agent system prompt ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════
+def get_active_prompt(name: str, default_content: str) -> str:
+    """
+    Fetch the active prompt from the database. Falls back to hardcoded default.
+    """
+    try:
+        with Session(engine) as session:
+            prompt = session.exec(
+                select(ChatbotPrompt)
+                .where(ChatbotPrompt.name == name)
+                .where(ChatbotPrompt.is_active == True)
+            ).first()
+            if prompt:
+                return prompt.content
+    except Exception as e:
+        logger.error(f"Failed to fetch prompt {name} from DB: {e}")
+    
+    return default_content
 
-_BOT_SYSTEM_PROMPT = SystemMessage(content="""\
+
+def clear_agent_cache():
+    """Clear the compiled agent cache."""
+    global _agent_cache
+    _agent_cache = {}
+    logger.info("━━━ [AGENT CACHE] Cache cleared.")
+
+
+_BOT_SYSTEM_PROMPT_DEFAULT = """\
 You are TradeMate, an expert AI assistant specialising in international trade,
 import/export regulations, Harmonized System (HS) codes, tariff schedules,
 trade procedures, logistics, and trade finance. You have broad expertise across
@@ -1371,7 +1399,7 @@ ABSOLUTE PROHIBITIONS
 ✗ NEVER mention Pakistan-China FTA, SAFTA, or other regional agreements when the user is
   asking about exporting TO the United States — those agreements govern trade with other
   countries and are irrelevant to US import duties.
-""")
+"""
 
 # ── LLM singleton ─────────────────────────────────────────────────────────────
 
@@ -1641,10 +1669,14 @@ def _build_agent(tools: list):
     cache_key = frozenset(t.name for t in tools)
     if cache_key not in _agent_cache:
         llm = _get_llm()
+        
+        # Load system prompt from DB or fallback
+        prompt_content = get_active_prompt("bot_system_prompt", _BOT_SYSTEM_PROMPT_DEFAULT)
+        
         _agent_cache[cache_key] = create_react_agent(
             model=llm.bind_tools(tools),
             tools=tools,
-            prompt=_BOT_SYSTEM_PROMPT,
+            prompt=SystemMessage(content=prompt_content),
         )
         logger.info(
             "━━━ [AGENT CACHE] Compiled new agent for tool combination: %s",

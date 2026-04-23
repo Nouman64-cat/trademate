@@ -1,5 +1,70 @@
 # CHANGELOG
 
+### v6.5.0 - 04/23/2026
+
+#### Added - Data Pipeline Admin Integration
+
+- **Admin API Routes** (`server/routes/data_pipeline.py`):
+  - Health monitoring for Pinecone, S3, and OpenAI services
+  - Document upload endpoint with multipart file support
+  - Ingestion job management with real-time status polling
+  - Pipeline statistics and configuration endpoints
+  - Proxy architecture to data pipeline backend (port 8001)
+
+- **Admin Portal Pages**:
+  - **Data Pipeline Dashboard** (`/data-pipeline`): System health status, statistics overview (documents ingested, vectors in Pinecone, research runs, S3 storage), quick action cards
+  - **Document Ingestion** (`/data-pipeline/documents`): File upload interface with drag-and-drop, real-time job tracking with auto-refresh, status indicators (pending/processing/completed/failed), detailed job metrics (chunks, vectors, timestamps)
+  - **Research Pipeline** (`/data-pipeline/research`): Trigger form for news/trade data research, configurable parameters (query, max items, fetch limit, keyword matching), automated schedule information, data source descriptions
+
+#### Added - Knowledge Graph Admin Integration
+
+- **Knowledge Graph API** (port 8002):
+  - **Health Endpoints** (`routes/health.py`): Memgraph connection status check
+  - **Statistics Endpoints** (`routes/stats.py`): Comprehensive graph stats (total nodes/relationships, HS codes by source, hierarchy breakdown, related data counts)
+  - **Query Endpoints** (`routes/query.py`):
+    - Get HS code details with all relationships (tariffs, exemptions, procedures, measures, cess, anti-dumping)
+    - Text search across HS code descriptions
+    - Hierarchy path retrieval (Chapter → SubChapter → Heading → SubHeading → HSCode)
+  - **Ingestion Endpoints** (`routes/ingest.py`): Background job processing for PK/US data, live log streaming (last 100 lines), job status tracking with timestamps
+  - Complete FastAPI application with auto-generated Swagger docs at `/docs`
+
+- **Admin Proxy Routes** (`server/routes/knowledge_graph.py`):
+  - Proxy all Knowledge Graph API endpoints under `/v1/admin/knowledge-graph/*`
+  - Admin authentication required for all endpoints
+  - Clean separation: Admin Server → KG API → Memgraph
+
+- **Admin Portal Pages**:
+  - **Knowledge Graph Dashboard** (`/knowledge-graph`): Memgraph connection health, node/relationship statistics, HS code counts (PK vs US), breakdown of tariffs, exemptions, procedures, measures, cess, anti-dumping
+  - **Ingestion Control** (`/knowledge-graph/ingest`): Separate trigger buttons for Pakistan PCT and US HTS, real-time job monitoring with auto-refresh (3s intervals), expandable logs viewer with terminal-style output, concurrent ingestion prevention
+  - **HS Code Explorer** (`/knowledge-graph/query`): Search interface with source selector (PK/US), detailed results display with all relationships, visual breakdown by category (tariffs, exemptions, procedures, measures), color-coded relationship cards
+
+- **Documentation**:
+  - `knowledge_graph/README_API.md`: Complete API documentation with endpoint descriptions, request/response examples, integration guide, testing instructions, production deployment tips
+
+#### Enhanced - Navigation
+
+- Added **Data Pipeline** section to admin sidebar with Overview, Documents, and Research sub-pages
+- Added **Knowledge Graph** section to admin sidebar with Overview, Ingestion, and Query sub-pages
+- Updated navigation icons (Workflow, GitBranch, Search, TrendingUp)
+
+#### Fixed - Environment Variables
+
+- Changed Knowledge Graph environment variables from `NEO4J_*` to `MEMGRAPH_*` for clarity
+- Added fallback support for `NEO4J_*` variables for backward compatibility
+- Updated `db_utils.py` to read `MEMGRAPH_URI`, `MEMGRAPH_USERNAME`, `MEMGRAPH_PASSWORD`
+- Updated `.env.example` with correct Memgraph variable names
+- Updated all documentation to reflect Memgraph naming
+
+#### Technical Improvements
+
+- **Background Job Processing**: AsyncIO subprocess execution for ingestion scripts with stdout capture
+- **Real-time Log Streaming**: Live log updates during ingestion (100-line buffer)
+- **Proxy Architecture**: Clean separation between admin server, data pipeline API, and knowledge graph API
+- **Type Safety**: Full TypeScript coverage for all new frontend pages
+- **Dark Mode Support**: Complete dark theme integration across all new pages
+- **Error Handling**: Comprehensive error messages with retry mechanisms
+- **Auto-polling**: Job status refresh every 2-3 seconds during execution
+
 ### v6.4.0 - 04/23/2026
 
 #### Migrated

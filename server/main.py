@@ -18,6 +18,8 @@ from routes.conversations import router as conversations_router
 from routes.routes import router as routes_router
 from routes.voice import router as voice_router
 from routes.recommendations import router as recommendations_router
+from routes.data_pipeline import router as data_pipeline_router
+from routes.knowledge_graph import router as knowledge_graph_router
 
 
 @asynccontextmanager
@@ -48,6 +50,8 @@ app.include_router(conversations_router)
 app.include_router(routes_router)
 app.include_router(voice_router)
 app.include_router(recommendations_router)
+app.include_router(data_pipeline_router)
+app.include_router(knowledge_graph_router)
 
 
 @app.get("/")

@@ -15,21 +15,22 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 logger = logging.getLogger(__name__)
 
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+# Read from MEMGRAPH_URI (Memgraph uses Neo4j-compatible Bolt protocol)
+MEMGRAPH_URI = os.getenv("MEMGRAPH_URI") or os.getenv("NEO4J_URI")
+MEMGRAPH_USERNAME = os.getenv("MEMGRAPH_USERNAME") or os.getenv("NEO4J_USERNAME", "")
+MEMGRAPH_PASSWORD = os.getenv("MEMGRAPH_PASSWORD") or os.getenv("NEO4J_PASSWORD", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def get_driver():
-    """Return a verified Neo4j driver instance."""
-    if not NEO4J_URI:
-        raise EnvironmentError("Missing NEO4J_URI in .env")
-    
+    """Return a verified Memgraph driver instance (Neo4j-compatible)."""
+    if not MEMGRAPH_URI:
+        raise EnvironmentError("Missing MEMGRAPH_URI in .env")
+
     # Memgraph accepts empty strings for default auth
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+    driver = GraphDatabase.driver(MEMGRAPH_URI, auth=(MEMGRAPH_USERNAME, MEMGRAPH_PASSWORD))
     driver.verify_connectivity()
-    logger.info("Database connection established → %s", NEO4J_URI)
+    logger.info("Memgraph connection established → %s", MEMGRAPH_URI)
     return driver
 
 

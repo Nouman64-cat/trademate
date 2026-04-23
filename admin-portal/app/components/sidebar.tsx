@@ -30,6 +30,31 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     );
   };
 
+  React.useEffect(() => {
+    // Automatically expand parents of active items
+    const activeParents: string[] = [];
+    
+    NAV_ITEMS.forEach(item => {
+      if (item.children && pathname.startsWith(item.href)) {
+        activeParents.push(item.title);
+      }
+    });
+
+    if (activeParents.length > 0) {
+      setExpandedItems(prev => {
+        const newItems = [...prev];
+        let changed = false;
+        activeParents.forEach(p => {
+          if (!newItems.includes(p)) {
+            newItems.push(p);
+            changed = true;
+          }
+        });
+        return changed ? newItems : prev;
+      });
+    }
+  }, [pathname]);
+
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(href + '/');
   };

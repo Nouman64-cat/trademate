@@ -71,6 +71,24 @@ export interface ChatbotSettings {
   interaction_tracking_enabled: boolean;
 }
 
+export interface Prompt {
+  id: number;
+  name: string;
+  content: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromptListItem {
+  id: number;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  updated_at: string;
+}
+
 // ==================== Analytics ====================
 
 export interface AnalyticsOverview {
@@ -100,6 +118,26 @@ export interface APIError {
 export interface SuccessResponse {
   message: string;
   data?: any;
+}
+
+export interface SystemSettings {
+  site_name: string;
+  support_email: string;
+  maintenance_mode: boolean;
+  default_language: string;
+  timezone: string;
+  updated_at: string;
+}
+
+export interface SecuritySettings {
+  min_password_length: number;
+  require_special_characters: boolean;
+  require_numbers: boolean;
+  two_factor_required: boolean;
+  session_timeout_minutes: number;
+  max_login_attempts: number;
+  jwt_access_token_expire_minutes: number;
+  updated_at: string;
 }
 
 // ==================== Navigation ====================

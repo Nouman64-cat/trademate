@@ -1,5 +1,5 @@
 import logging
-from server.celery_app import app
+from celery_app import app
 
 logger = logging.getLogger(__name__)
 

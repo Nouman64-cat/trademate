@@ -11,6 +11,10 @@ import {
   Database,
   Shield,
   FileText,
+  Workflow,
+  TrendingUp,
+  GitBranch,
+  Search,
 } from 'lucide-react';
 import { NavItem } from '../types';
 
@@ -44,6 +48,50 @@ export const NAV_ITEMS: NavItem[] = [
         title: 'Prompts',
         href: '/chatbot/prompts',
         icon: FileText,
+      },
+    ],
+  },
+  {
+    title: 'Data Pipeline',
+    href: '/data-pipeline',
+    icon: Workflow,
+    children: [
+      {
+        title: 'Overview',
+        href: '/data-pipeline',
+        icon: LayoutDashboard,
+      },
+      {
+        title: 'Documents',
+        href: '/data-pipeline/documents',
+        icon: FileText,
+      },
+      {
+        title: 'Research',
+        href: '/data-pipeline/research',
+        icon: TrendingUp,
+      },
+    ],
+  },
+  {
+    title: 'Knowledge Graph',
+    href: '/knowledge-graph',
+    icon: GitBranch,
+    children: [
+      {
+        title: 'Overview',
+        href: '/knowledge-graph',
+        icon: LayoutDashboard,
+      },
+      {
+        title: 'Ingestion',
+        href: '/knowledge-graph/ingest',
+        icon: Database,
+      },
+      {
+        title: 'Query',
+        href: '/knowledge-graph/query',
+        icon: Search,
       },
     ],
   },

@@ -30,6 +30,7 @@ import logging
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib3
+from s3_utils import sync_data_from_s3, sync_data_to_s3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -340,6 +341,10 @@ def fetch_and_parse_hs(item):
 
 def run():
     os.makedirs(OUT_DIR, exist_ok=True)
+    
+    # Sync existing data from S3 to resume checkpoints
+    log.info("Syncing data from S3...")
+    sync_data_from_s3(OUT_DIR)
 
     log.handlers.clear()
     logging.basicConfig(
@@ -463,6 +468,11 @@ def run():
                 f"exempt={len(data['exemptions'])} antidump={len(data['antidump'])} "
                 f"measures={len(data['measures'])} procs={len(data['procedures'])}"
             )
+            
+            # Periodically sync to S3
+            if completed % 50 == 0:
+                log.info("Performing periodic S3 sync...")
+                sync_data_to_s3(OUT_DIR)
 
     # ── Step 5: Patch — ensure every code has an explicit RD row ─────────────
     patch_missing_rd()
@@ -472,6 +482,10 @@ def run():
     for f in [FILE_MASTER, FILE_TARIFFS, FILE_CESS, FILE_EXEMPTIONS,
               FILE_ANTIDUMP, FILE_MEASURES, FILE_PROCEDURES, FILE_FAILED]:
         log.info(f"  {f}")
+
+    # Final sync to S3
+    log.info("Performing final S3 sync...")
+    sync_data_to_s3(OUT_DIR)
 
 
 def patch_missing_rd():

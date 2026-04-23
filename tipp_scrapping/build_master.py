@@ -20,11 +20,13 @@ Run:
 import csv
 import os
 from collections import defaultdict, OrderedDict
+from s3_utils import sync_data_from_s3, sync_data_to_s3
 
 OUT_DIR     = "data"
 OUTPUT_FILE = os.path.join(OUT_DIR, "master_tipp.csv")
 
 # ── 1. Product hierarchy from master list ─────────────────────────────────────
+sync_data_from_s3(OUT_DIR)
 print("Loading product hierarchy...")
 master_lookup = {}   # {cleaned_code: description}
 with open(os.path.join(OUT_DIR, "hs_codes_master.csv"), newline="", encoding="utf-8") as f:
@@ -207,6 +209,9 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
         row["Procedures_Detail"] = " || ".join(procs) if procs else ""
 
         w.writerow(row)
+
+    # Sync result to S3
+    sync_data_to_s3(OUT_DIR)
 
 print(f"\nDone.")
 print(f"  File    : {OUTPUT_FILE}")

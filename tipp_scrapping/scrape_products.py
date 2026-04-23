@@ -25,6 +25,7 @@ import requests
 import urllib3
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from s3_utils import sync_data_from_s3, sync_data_to_s3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -208,6 +209,10 @@ def load_hs_codes():
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
+    
+    # Sync from S3
+    log.info("Syncing data from S3...")
+    sync_data_from_s3(OUT_DIR)
 
     all_codes = load_hs_codes()
     if not all_codes:
@@ -265,11 +270,19 @@ def main():
             codes_done += 1
             if codes_done % 100 == 0 or rows:
                 log.info(
-                    f"  [{codes_done}/{len(pending)}] {hs}  products={len(rows)}"
                     f"  total_written={products_written}"
                 )
+            
+            # Periodically sync to S3
+            if codes_done % 100 == 0:
+                log.info("Performing periodic S3 sync...")
+                sync_data_to_s3(OUT_DIR)
 
     prod_fh.close()
+
+    # Final sync to S3
+    log.info("Performing final S3 sync...")
+    sync_data_to_s3(OUT_DIR)
 
     log.info("==============================")
     log.info(f"Codes scraped : {codes_done}")

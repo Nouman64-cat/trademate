@@ -25,6 +25,7 @@ import requests
 import urllib3
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from s3_utils import sync_data_from_s3, sync_data_to_s3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -563,8 +564,15 @@ def run_procedures():
 
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
+    # Sync from S3 to resume
+    sync_data_from_s3(OUT_DIR)
     run_measures()
+    # Sync after measures
+    sync_data_to_s3(OUT_DIR)
+    
     run_procedures()
+    # Final sync
+    sync_data_to_s3(OUT_DIR)
 
     log.info("\n====== Summary ======")
     for fpath in (FILE_MEASURES_OUT, FILE_PROCEDURES_OUT, FILE_PRODUCTS_OUT):

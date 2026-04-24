@@ -43,13 +43,13 @@ services:
 
   data-pipeline:
     build:
-      context: ./data_pipeline/backend
+      context: ./data_pipeline
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
-    env_file: ./data_pipeline/backend/.env
+    env_file: ./data_pipeline/.env
     volumes:
-      - ./data_pipeline/backend:/app
+      - ./data_pipeline:/app
     restart: unless-stopped
 
   knowledge-graph:

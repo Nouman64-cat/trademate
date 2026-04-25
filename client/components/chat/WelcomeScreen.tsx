@@ -9,24 +9,24 @@ interface Prompt {
 
 const SUGGESTED_PROMPTS: Prompt[] = [
   {
+    icon: <Globe size={16} />,
+    label: "Trade Overview",
+    prompt: "Give me an overview of US-Pakistan trade relations in 2024",
+  },
+  {
     icon: <TrendingUp size={16} />,
-    label: "Market Analysis",
-    prompt: "Give me an overview of current stock market trends",
+    label: "Export Analysis",
+    prompt: "What are the major textile products Pakistan exports to the US?",
   },
   {
     icon: <BarChart2 size={16} />,
-    label: "Portfolio Review",
-    prompt: "How should I diversify my investment portfolio?",
-  },
-  {
-    icon: <Globe size={16} />,
-    label: "Crypto Insights",
-    prompt: "What's the latest on Bitcoin and crypto market sentiment?",
+    label: "Import Data",
+    prompt: "What are the main items Pakistan imports from the United States?",
   },
   {
     icon: <BookOpen size={16} />,
-    label: "Learn Investing",
-    prompt: "Explain dollar-cost averaging for a beginner",
+    label: "Economic Trends",
+    prompt: "How have US-Pakistan trade volumes changed over the last 5 years?",
   },
 ];
 
@@ -46,8 +46,8 @@ export function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
         What can I help you with?
       </h1>
       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-10 text-center max-w-sm">
-        Your AI-powered financial assistant. Ask about markets, portfolios,
-        crypto, or any trading topic.
+        Your AI-powered trade advisor. Ask about US-Pakistan trade statistics,
+        tariffs, news, or market trends.
       </p>
 
       {/* Suggested prompts */}

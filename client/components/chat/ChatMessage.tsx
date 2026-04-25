@@ -7,6 +7,7 @@ import type { Message } from "@/types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { StarRating } from "./StarRating";
 import { IconButton } from "@/components/ui/IconButton";
+import { FILE_TYPE_CONFIG, DEFAULT_FILE_CONFIG } from "@/lib/fileTypeConfig";
 import { useChatStore } from "@/stores/chatStore";
 import MessageService from "@/services/message.service";
 import { cn } from "@/lib/cn";
@@ -20,6 +21,55 @@ const RouteWidget = dynamic(
 interface ChatMessageProps {
   message: Message;
   isStreaming?: boolean;
+}
+
+// ── document message parser ───────────────────────────────────────────────────
+
+interface ParsedDocMessage {
+  filenames: string[];
+  question: string;
+}
+
+const DOC_SEP = "\n\n---\n\n";
+
+function parseDocMessage(content: string): ParsedDocMessage | null {
+  if (!content.startsWith("[Attached document:")) return null;
+
+  const sepIdx = content.lastIndexOf(DOC_SEP);
+  if (sepIdx === -1) return null;
+
+  const question = content.slice(sepIdx + DOC_SEP.length).trim();
+  const docSection = content.slice(0, sepIdx);
+  const filenames = [...docSection.matchAll(/^\[Attached document: (.+?)\]/gm)].map(
+    (m) => m[1]
+  );
+
+  if (filenames.length === 0) return null;
+  return { filenames, question };
+}
+
+function extFromFilename(filename: string): string {
+  return filename.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function DocMessageCard({ filename }: { filename: string }) {
+  const ext = extFromFilename(filename);
+  const cfg = FILE_TYPE_CONFIG[ext] ?? DEFAULT_FILE_CONFIG;
+  const Icon = cfg.icon;
+
+  return (
+    <div className="inline-flex items-center gap-3 p-2.5 rounded-xl border bg-white/60 dark:bg-zinc-700/40 border-zinc-200 dark:border-zinc-600 w-[200px]">
+      <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0", cfg.bg)}>
+        <Icon size={19} className={cfg.iconColor} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
+          {filename}
+        </p>
+        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">{cfg.label}</p>
+      </div>
+    </div>
+  );
 }
 
 export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
@@ -48,8 +98,21 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
   };
 
   if (message.role === "user") {
+    const parsed = parseDocMessage(message.content);
+    const defaultQuestion =
+      parsed && parsed.filenames.length > 1
+        ? "Please analyze these documents."
+        : "Please analyze this document.";
+
     return (
-      <div className="flex justify-end px-4 py-1 group">
+      <div className="flex flex-col items-end px-4 py-1 group gap-1.5">
+        {parsed && (
+          <div className="flex flex-wrap gap-2 justify-end">
+            {parsed.filenames.map((name) => (
+              <DocMessageCard key={name} filename={name} />
+            ))}
+          </div>
+        )}
         <div
           className={cn(
             "max-w-[75%] px-4 py-3 rounded-2xl rounded-tr-sm",
@@ -57,7 +120,17 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
             "text-zinc-900 dark:text-zinc-100 text-sm leading-7"
           )}
         >
-          {message.content}
+          {parsed ? (
+            parsed.question === defaultQuestion ? (
+              <span className="text-zinc-500 dark:text-zinc-400 italic text-xs">
+                {defaultQuestion}
+              </span>
+            ) : (
+              parsed.question
+            )
+          ) : (
+            message.content
+          )}
         </div>
       </div>
     );
@@ -66,17 +139,14 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
   return (
     <div className="px-4 py-3 group">
       {/* Avatar + name */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-0">
         <div className="h-6 w-6 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
           <span className="text-white text-[10px] font-bold">TM</span>
         </div>
-        <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-          TradeMate
-        </span>
       </div>
 
       {/* Content */}
-      <div className="pl-8">
+      <div className="pl-8 -mt-6">
         {message.content ? (
           <MarkdownRenderer content={message.content} />
         ) : (

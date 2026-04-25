@@ -25,6 +25,13 @@ export interface Conversation {
   title: string;
   titleLoading?: boolean;
   messages: Message[];
+  /**
+   * false = loaded from server list but messages not yet fetched.
+   * undefined or true = messages are already in store (locally created or already fetched).
+   */
+  messagesLoaded?: boolean;
+  /** Set when the conversation is pinned; undefined means not pinned. */
+  pinnedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

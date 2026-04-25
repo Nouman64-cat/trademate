@@ -23,8 +23,16 @@ def create_db_tables():
     SQLModel.metadata.create_all(engine)
     
     # Run manual migrations for schema changes not handled by create_all
-    from .migrations import run_migrations
+    from .migrations import run_migrations, sync_prompts
     run_migrations()
+    sync_prompts()
+
+    # Clear compiled agent cache so any prompt change takes effect immediately
+    try:
+        from agent.bot import clear_agent_cache
+        clear_agent_cache()
+    except Exception:
+        pass
 
 
 

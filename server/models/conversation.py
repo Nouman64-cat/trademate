@@ -25,6 +25,10 @@ class Conversation(SQLModel, table=True):
         sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     )
     title: Optional[str] = Field(default=None, max_length=255)
+    share_token: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, unique=True, nullable=True, index=True),
+    )
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),

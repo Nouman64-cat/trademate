@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Pencil, Trash2, Check, X } from "lucide-react";
+import { Check, Pencil, Pin, Trash2, X } from "lucide-react";
 import type { Conversation } from "@/types";
 import { truncateTitle } from "@/lib/utils";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,8 @@ interface SidebarItemProps {
   onSelect: () => void;
   onDelete: () => void;
   onRename: (title: string) => void;
+  onPin: () => void;
+  onUnpin: () => void;
 }
 
 export function SidebarItem({
@@ -20,10 +22,13 @@ export function SidebarItem({
   onSelect,
   onDelete,
   onRename,
+  onPin,
+  onUnpin,
 }: SidebarItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(conversation.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isPinned = Boolean(conversation.pinnedAt);
 
   const startEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,6 +59,14 @@ export function SidebarItem({
             : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
         )}
       >
+        {/* Persistent pin dot for pinned conversations */}
+        {isPinned && !editing && (
+          <Pin
+            size={10}
+            className="flex-shrink-0 text-violet-500 dark:text-violet-400 fill-current"
+          />
+        )}
+
         {editing ? (
           <input
             ref={inputRef}
@@ -70,18 +83,14 @@ export function SidebarItem({
         ) : conversation.titleLoading ? (
           <span className="flex-1 h-3.5 rounded bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
         ) : (
-          <span className="flex-1 truncate">
-            {truncateTitle(conversation.title)}
-          </span>
+          <span className="flex-1 truncate">{conversation.title}</span>
         )}
 
         {/* Action icons */}
         <span
           className={cn(
             "flex items-center gap-0.5 flex-shrink-0",
-            editing
-              ? "visible"
-              : "invisible group-hover:visible"
+            editing ? "flex" : "hidden group-hover:flex"
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -99,6 +108,16 @@ export function SidebarItem({
               <ActionIcon label="Rename" onClick={startEdit}>
                 <Pencil size={12} />
               </ActionIcon>
+              <ActionIcon
+                label={isPinned ? "Unpin" : "Pin"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  isPinned ? onUnpin() : onPin();
+                }}
+                active={isPinned}
+              >
+                <Pin size={12} className={isPinned ? "fill-current" : ""} />
+              </ActionIcon>
               <ActionIcon label="Delete" onClick={onDelete} danger>
                 <Trash2 size={12} />
               </ActionIcon>
@@ -114,11 +133,13 @@ function ActionIcon({
   label,
   onClick,
   danger,
+  active,
   children,
 }: {
   label: string;
   onClick: (e: React.MouseEvent) => void;
   danger?: boolean;
+  active?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -130,6 +151,8 @@ function ActionIcon({
         "p-1 rounded transition-colors",
         danger
           ? "hover:text-red-500 dark:hover:text-red-400"
+          : active
+          ? "text-violet-500 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
           : "hover:text-zinc-900 dark:hover:text-zinc-100"
       )}
     >

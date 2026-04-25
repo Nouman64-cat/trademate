@@ -46,4 +46,53 @@ def run_migrations():
             except Exception as e:
                 logger.error("Failed to add is_admin column: %s", e)
 
+    # --- Migration 3: Add share_token column to conversations table ---
+    if "conversations" in tables:
+        columns = inspector.get_columns("conversations")
+        column_names = [c["name"] for c in columns]
+        if "share_token" not in column_names:
+            logger.info("Adding share_token column to conversations table...")
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE conversations ADD COLUMN share_token TEXT UNIQUE;"))
+                    conn.commit()
+                logger.info("Successfully added share_token column to conversations table.")
+            except Exception as e:
+                logger.error("Failed to add share_token column: %s", e)
+
     # Future migrations can be added here...
+
+
+def sync_prompts():
+    """
+    Overwrite the DB-stored bot_system_prompt with the current hardcoded default.
+    Called at startup so prompt changes in bot.py take effect without manual DB edits.
+    """
+    try:
+        # Lazy import to avoid circular dependency at module level
+        from agent.bot import _BOT_SYSTEM_PROMPT_DEFAULT
+        from sqlmodel import Session, select
+        from models.chatbot_prompt import ChatbotPrompt
+
+        with Session(engine) as session:
+            prompt = session.exec(
+                select(ChatbotPrompt).where(ChatbotPrompt.name == "bot_system_prompt")
+            ).first()
+            if prompt:
+                if prompt.content != _BOT_SYSTEM_PROMPT_DEFAULT:
+                    prompt.content = _BOT_SYSTEM_PROMPT_DEFAULT
+                    session.add(prompt)
+                    session.commit()
+                    logger.info("bot_system_prompt synced to latest default.")
+                else:
+                    logger.info("bot_system_prompt already up to date.")
+            else:
+                session.add(ChatbotPrompt(
+                    name="bot_system_prompt",
+                    content=_BOT_SYSTEM_PROMPT_DEFAULT,
+                    description="Core ReAct agent system prompt (agent/bot.py)",
+                ))
+                session.commit()
+                logger.info("bot_system_prompt inserted into DB.")
+    except Exception as exc:
+        logger.error("sync_prompts failed: %s", exc)

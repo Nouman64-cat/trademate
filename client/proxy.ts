@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register", "/verify-otp", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = ["/login", "/register", "/verify-otp", "/forgot-password", "/reset-password", "/share"];
 const ONBOARDING_PATH = "/onboarding";
 
 export function proxy(request: NextRequest) {

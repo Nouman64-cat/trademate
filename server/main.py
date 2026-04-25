@@ -21,6 +21,8 @@ from routes.recommendations import router as recommendations_router
 from routes.data_pipeline import router as data_pipeline_router
 from routes.knowledge_graph import router as knowledge_graph_router
 from routes.tipp_scraper import router as tipp_scraper_router
+from routes.upload import router as upload_router
+from routes.share import router as share_router
 
 
 @asynccontextmanager
@@ -54,6 +56,8 @@ app.include_router(recommendations_router)
 app.include_router(data_pipeline_router)
 app.include_router(knowledge_graph_router)
 app.include_router(tipp_scraper_router)
+app.include_router(upload_router)
+app.include_router(share_router)
 
 
 @app.get("/")

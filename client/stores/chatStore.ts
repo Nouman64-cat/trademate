@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Conversation, Message, MessageWidget } from "@/types";
+import type { ConversationSummary } from "@/services/conversation.service";
 import { generateId, deriveTitleFromMessage } from "@/lib/utils";
 
 interface ChatState {
@@ -25,6 +26,10 @@ interface ChatState {
   getActiveConversation: () => Conversation | undefined;
   renameConversation: (id: string, title: string) => void;
   setConversationTitle: (id: string, title: string) => void;
+  mergeServerConversations: (serverConvs: ConversationSummary[]) => void;
+  setMessagesForConversation: (id: string, messages: Message[]) => void;
+  pinConversation: (id: string) => void;
+  unpinConversation: (id: string) => void;
   clearAll: () => void;
 }
 
@@ -44,6 +49,7 @@ export const useChatStore = create<ChatState>()(
           title: "New conversation",
           titleLoading: false,
           messages: [],
+          messagesLoaded: true,
           createdAt: now,
           updatedAt: now,
         };
@@ -180,6 +186,58 @@ export const useChatStore = create<ChatState>()(
         }));
       },
 
+      mergeServerConversations: (serverConvs) => {
+        set((state) => {
+          const byId = new Map(state.conversations.map((c) => [c.id, c]));
+          const serverIds = new Set(serverConvs.map((s) => s.id));
+
+          const merged: Conversation[] = serverConvs.map((sc) => {
+            const existing = byId.get(sc.id);
+            // Keep existing entry if messages are already loaded (!== false covers undefined = old data)
+            if (existing && existing.messagesLoaded !== false) {
+              return { ...existing, title: sc.title ?? existing.title };
+            }
+            return {
+              id: sc.id,
+              title: sc.title ?? "Untitled",
+              titleLoading: false,
+              messages: existing?.messages ?? [],
+              messagesLoaded: existing?.messagesLoaded ?? false,
+              createdAt: new Date(sc.created_at),
+              updatedAt: new Date(sc.updated_at),
+            };
+          });
+
+          // Preserve locally-created conversations not yet on the server
+          const localOnly = state.conversations.filter((c) => !serverIds.has(c.id));
+          return { conversations: [...merged, ...localOnly] };
+        });
+      },
+
+      setMessagesForConversation: (id, messages) => {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === id ? { ...c, messages, messagesLoaded: true } : c
+          ),
+        }));
+      },
+
+      pinConversation: (id) => {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === id ? { ...c, pinnedAt: new Date() } : c
+          ),
+        }));
+      },
+
+      unpinConversation: (id) => {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === id ? { ...c, pinnedAt: undefined } : c
+          ),
+        }));
+      },
+
       clearAll: () => {
         set({ conversations: [], activeConversationId: null, isStreaming: false });
       },
@@ -193,6 +251,7 @@ export const useChatStore = create<ChatState>()(
           ...conv,
           createdAt: new Date(conv.createdAt),
           updatedAt: new Date(conv.updatedAt),
+          pinnedAt: conv.pinnedAt ? new Date(conv.pinnedAt) : undefined,
           messages: conv.messages.map((m) => ({
             ...m,
             createdAt: new Date(m.createdAt),

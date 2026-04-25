@@ -62,11 +62,8 @@ export function VoiceModal({ token, onClose }: VoiceModalProps) {
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   // Auto-start when the modal mounts; stop on unmount.
-  // mountedRef guard prevents React 18 StrictMode from calling start() twice.
-  const mountedRef = useRef(false);
+  // start() self-cancels if stop() runs concurrently (handles React StrictMode).
   useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
     start();
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps

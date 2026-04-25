@@ -69,12 +69,13 @@ export function useVoice(token: string) {
 
   // Stable refs so callbacks never have stale closures
   const statusRef = useRef<VoiceStatus>("idle");
+  // Monotonically-increasing counter: each start() call stamps a generation;
+  // any async continuation that finds a newer generation knows it's stale.
+  const startGenRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  // ScriptProcessorNode is deprecated but has widest browser support without
-  // a separate AudioWorklet file.
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Monotonically-advancing playback cursor so audio chunks don't overlap.
   const playbackCursorRef = useRef<number>(0);
@@ -88,9 +89,9 @@ export function useVoice(token: string) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+    if (workletRef.current) {
+      workletRef.current.disconnect();
+      workletRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -113,6 +114,8 @@ export function useVoice(token: string) {
   const stop = useCallback(
     (reason: "user" | "timeout" | "error" = "user") => {
       if (statusRef.current === "ended") return;
+      console.log(`[VOICE] stop() reason=${reason} previousStatus=${statusRef.current}`);
+      startGenRef.current++;  // invalidate any in-flight start()
       statusRef.current = "ended";
       cleanup();
       setState((s) => ({
@@ -132,6 +135,8 @@ export function useVoice(token: string) {
 
   const start = useCallback(async () => {
     if (statusRef.current !== "idle" && statusRef.current !== "ended") return;
+    const myGen = ++startGenRef.current;
+    console.log(`[VOICE] start() gen=${myGen} — requesting mic, statusRef was:`, statusRef.current);
     statusRef.current = "connecting";
     setState({
       status: "connecting",
@@ -148,7 +153,9 @@ export function useVoice(token: string) {
         audio: true,
         video: false,
       });
-    } catch {
+      console.log("[VOICE] mic granted, tracks:", stream.getAudioTracks().map(t => t.label));
+    } catch (err) {
+      console.error("[VOICE] mic denied:", err);
       statusRef.current = "idle";
       setState((s) => ({
         ...s,
@@ -157,29 +164,60 @@ export function useVoice(token: string) {
       }));
       return;
     }
+    // Bail out if a newer start() (or stop()) superseded this invocation
+    if (startGenRef.current !== myGen) {
+      console.log(`[VOICE] gen=${myGen} stale after mic (superseded by gen=${startGenRef.current}) — releasing stream`);
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
     streamRef.current = stream;
 
     // AudioContext at 24 kHz — required by OpenAI Realtime API
     const audioCtx = new AudioContext({ sampleRate: 24000 });
+    console.log("[VOICE] AudioContext created, state:", audioCtx.state, "sampleRate:", audioCtx.sampleRate);
     audioCtxRef.current = audioCtx;
     playbackCursorRef.current = audioCtx.currentTime;
+
+    // Load the AudioWorklet processor before opening the WebSocket
+    try {
+      await audioCtx.audioWorklet.addModule("/mic-processor.js");
+      console.log("[VOICE] AudioWorklet loaded");
+    } catch (err) {
+      console.error("[VOICE] AudioWorklet load failed:", err);
+      statusRef.current = "idle";
+      setState((s) => ({
+        ...s,
+        status: "idle",
+        error: "Failed to load audio processor. Please refresh and try again.",
+      }));
+      cleanup();
+      return;
+    }
+    // Bail out if a newer start() (or stop()) superseded this invocation
+    if (startGenRef.current !== myGen) {
+      console.log(`[VOICE] gen=${myGen} stale after worklet (superseded by gen=${startGenRef.current}) — cleaning up`);
+      cleanup();
+      return;
+    }
 
     // WebSocket URL: swap http(s) → ws(s)
     const serverUrl =
       process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:8000";
     const wsBase = serverUrl.replace(/^http/, "ws");
-    const ws = new WebSocket(
-      `${wsBase}/v1/voice/stream?token=${encodeURIComponent(token)}`
-    );
+    const wsUrl = `${wsBase}/v1/voice/stream?token=${encodeURIComponent(token)}`;
+    console.log("[VOICE] opening WebSocket →", wsUrl.replace(/token=.*/, "token=<redacted>"));
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
       // Guard: if cleanup already ran and replaced / nulled the ref, this is a
       // zombie connection — close it immediately and bail out.
       if (wsRef.current !== ws) {
+        console.warn("[VOICE] ws.onopen — zombie connection, closing");
         ws.close();
         return;
       }
+      console.log("[VOICE] ws.onopen — session active");
       statusRef.current = "active";
       setState((s) => ({ ...s, status: "active" }));
 
@@ -194,23 +232,21 @@ export function useVoice(token: string) {
         if (elapsed >= SESSION_LIMIT_SECONDS) stop("timeout");
       }, 1000);
 
-      // Stream microphone audio to the server
+      // Stream microphone audio to the server via AudioWorkletNode
       const micSource = audioCtx.createMediaStreamSource(stream);
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-      processor.onaudioprocess = (ev) => {
+      const worklet = new AudioWorkletNode(audioCtx, "mic-processor");
+      workletRef.current = worklet;
+      worklet.port.onmessage = (ev: MessageEvent<Float32Array>) => {
         if (ws.readyState !== WebSocket.OPEN) return;
-        const samples = ev.inputBuffer.getChannelData(0);
         ws.send(
           JSON.stringify({
             type: "input_audio_buffer.append",
-            audio: float32ToPcm16Base64(samples),
+            audio: float32ToPcm16Base64(ev.data),
           })
         );
       };
-      micSource.connect(processor);
-      // Connect to destination to keep the graph alive (no audible output from mic)
-      processor.connect(audioCtx.destination);
+      micSource.connect(worklet);
+      worklet.connect(audioCtx.destination);
     };
 
     ws.onmessage = (ev) => {
@@ -223,8 +259,16 @@ export function useVoice(token: string) {
         return;
       }
 
+      // Log every server event type (skip audio deltas — too noisy)
+      if (
+        event.type !== "response.output_audio.delta" &&
+        event.type !== "input_audio_buffer.append"
+      ) {
+        console.log("[VOICE] server event:", event.type, event.error ?? "");
+      }
+
       // Play assistant audio chunks in order
-      if (event.type === "response.audio.delta" && typeof event.delta === "string") {
+      if (event.type === "response.output_audio.delta" && typeof event.delta === "string") {
         const f32 = pcm16Base64ToFloat32(event.delta);
         const buffer = audioCtx.createBuffer(1, f32.length, 24000);
         buffer.copyToChannel(f32 as any, 0);
@@ -261,7 +305,7 @@ export function useVoice(token: string) {
       }
 
       // Tool call finished — clear activity label when audio response begins
-      if (event.type === "response.audio.delta") {
+      if (event.type === "response.output_audio.delta") {
         setState((s) => (s.toolActivity ? { ...s, toolActivity: null } : s));
       }
 
@@ -274,7 +318,7 @@ export function useVoice(token: string) {
 
       // Accumulate assistant transcript delta (streamed character by character)
       if (
-        event.type === "response.audio_transcript.delta" &&
+        event.type === "response.output_audio_transcript.delta" &&
         typeof event.delta === "string"
       ) {
         const delta = event.delta;
@@ -299,18 +343,28 @@ export function useVoice(token: string) {
 
       // Server-initiated session end (time limit or error)
       if (event.type === "session.ended") {
+        console.log("[VOICE] server sent session.ended:", event);
         stop("timeout");
+      }
+
+      // Log any OpenAI error events forwarded by the backend
+      if (event.type === "error") {
+        console.error("[VOICE] OpenAI error event:", JSON.stringify(event));
       }
     };
 
-    ws.onerror = () => {
+    ws.onerror = (err) => {
+      console.error("[VOICE] ws.onerror:", err);
       if (wsRef.current === ws && statusRef.current !== "ended") stop("error");
     };
 
-    ws.onclose = () => {
-      if (wsRef.current === ws && statusRef.current !== "ended") stop("user");
+    ws.onclose = (event) => {
+      console.warn(
+        `[VOICE] ws.onclose — code=${event.code} reason="${event.reason}" wasClean=${event.wasClean} status=${statusRef.current}`
+      );
+      if (wsRef.current === ws && statusRef.current !== "ended") stop("error");
     };
-  }, [token, stop]);
+  }, [token, stop, cleanup]);
 
   return { state, start, stop };
 }

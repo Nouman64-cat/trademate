@@ -7,6 +7,12 @@ writes a status record back to pipeline-status/{job_id}.json so the FastAPI
 service can report progress without holding any in-memory state.
 
 Expected S3 key format: uploads/{job_id}/{filename}
+
+Failure handling:
+  Any unhandled exception is re-raised after attempting to write a FAILED
+  status to S3. Re-raising causes Lambda to register the invocation as a
+  failure, triggering up to 2 automatic retries. After all retries are
+  exhausted the event is forwarded to the DLQ via EventInvokeConfig.
 """
 
 import json
@@ -46,28 +52,53 @@ def _write_status(job: JobRecord) -> None:
 def handler(event: dict, context: object) -> dict:
     """
     Lambda handler. Receives an S3 ObjectCreated event and runs ingestion.
+
+    Any exception escaping this function causes Lambda to mark the invocation
+    as failed → automatic retries → DLQ after retries are exhausted.
     """
-    record = event["Records"][0]["s3"]
-    bucket = record["bucket"]["name"]
-    key = urllib.parse.unquote_plus(record["object"]["key"])
+    job: JobRecord | None = None
 
-    logger.info("S3 trigger — bucket=%s key=%s", bucket, key)
+    try:
+        record = event["Records"][0]["s3"]
+        bucket = record["bucket"]["name"]
+        key = urllib.parse.unquote_plus(record["object"]["key"])
 
-    # Key format: uploads/{job_id}/{filename}
-    parts = key.split("/")
-    if len(parts) < 3:
-        logger.error("Unexpected S3 key format (expected uploads/job_id/filename): %s", key)
-        return {"statusCode": 400, "body": "Unexpected S3 key format"}
+        logger.info("S3 trigger — bucket=%s key=%s", bucket, key)
 
-    job_id = parts[1]
-    job = JobRecord(job_id=job_id, s3_key=key, status=JobStatus.RUNNING)
+        # Key format: uploads/{job_id}/{filename}
+        parts = key.split("/")
+        if len(parts) < 3:
+            # Raise — do NOT return a 400. Returning any dict counts as a
+            # Lambda success and would bypass retries and the DLQ entirely.
+            raise ValueError(
+                f"Unexpected S3 key format (expected uploads/job_id/filename): {key}"
+            )
 
-    _write_status(job)
-    run_ingestion(job)
-    _write_status(job)
+        job_id = parts[1]
+        job = JobRecord(job_id=job_id, s3_key=key, status=JobStatus.RUNNING)
 
-    status_code = 200 if job.status == JobStatus.COMPLETED else 500
-    return {
-        "statusCode": status_code,
-        "body": json.dumps({"status": job.status, "message": job.message}),
-    }
+        _write_status(job)
+        run_ingestion(job)
+        _write_status(job)
+
+        status_code = 200 if job.status == JobStatus.COMPLETED else 500
+        return {
+            "statusCode": status_code,
+            "body": json.dumps({"status": job.status, "message": job.message}),
+        }
+
+    except Exception as exc:
+        logger.exception("Handler failed — will retry then route to DLQ: %s", exc)
+
+        # Best-effort: write FAILED status so the admin portal shows an error
+        # rather than staying stuck on "running". If this write also fails,
+        # swallow it and let the re-raise below trigger the DLQ path.
+        if job is not None:
+            try:
+                job.status = JobStatus.FAILED
+                job.message = f"Ingestion failed: {exc}"
+                _write_status(job)
+            except Exception:
+                logger.warning("[%s] Could not write FAILED status to S3", job.job_id)
+
+        raise  # Re-raise → Lambda registers failure → retries → DLQ

@@ -29,6 +29,12 @@ provider:
             - s3:GetObject
           Resource:
             - arn:aws:s3:::${env:AWS_S3_BUCKET_NAME}/pipeline-status/*
+        # Forward failed events to DLQ
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource:
+            - !GetAtt IngestionDLQ.Arn
   environment:
     AWS_S3_BUCKET_NAME: ${env:AWS_S3_BUCKET_NAME}
     PINECONE_API_KEY: ${env:PINECONE_API_KEY}
@@ -47,4 +53,46 @@ functions:
           event: s3:ObjectCreated:*
           rules:
             - prefix: uploads/
-          existing: true  # Bucket already exists — do not create a new one
+          existing: true
+
+resources:
+  Resources:
+
+    # ── Dead Letter Queue ────────────────────────────────────────────────────────
+    IngestionDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-dlq
+        MessageRetentionPeriod: 1209600  # 14 days — enough time to investigate and reprocess
+        VisibilityTimeout: 905           # Lambda max timeout (900s) + 5s buffer
+
+    # Wires up the DLQ: after 2 Lambda retries (3 total attempts), failed events
+    # land in the DLQ instead of being silently discarded.
+    IngestionEventInvokeConfig:
+      Type: AWS::Lambda::EventInvokeConfig
+      Properties:
+        FunctionName: !Ref IngestionLambdaFunction
+        Qualifier: $LATEST
+        MaximumRetryAttempts: 2
+        DestinationConfig:
+          OnFailure:
+            Destination: !GetAtt IngestionDLQ.Arn
+
+    # ── CloudWatch Alarm ─────────────────────────────────────────────────────────
+    # Fires within 5 minutes of any message appearing in the DLQ.
+    DLQDepthAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${self:provider.stage}-dlq-depth
+        AlarmDescription: "Failed Lambda ingestion events in DLQ — run scripts/reprocess_dlq.py"
+        MetricName: ApproximateNumberOfMessagesVisible
+        Namespace: AWS/SQS
+        Dimensions:
+          - Name: QueueName
+            Value: !GetAtt IngestionDLQ.QueueName
+        Statistic: Maximum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching

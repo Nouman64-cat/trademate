@@ -3,7 +3,6 @@ app/services/research_service.py — Core logic for the research pipeline.
 Handles fetching, processing (OpenAI), and storing (Pinecone/S3).
 """
 
-import os
 import json
 import logging
 from datetime import datetime
@@ -34,18 +33,13 @@ def _get_pinecone_index():
 
 
 def _get_s3_client():
-    client_kwargs = {
-        "region_name": settings.aws_region,
-    }
-    is_lambda = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-    if not is_lambda and settings.aws_access_key_id_manual and settings.aws_secret_access_key_manual:
+    client_kwargs: dict = {"region_name": settings.aws_region}
+    if settings.aws_access_key_id_manual and settings.aws_secret_access_key_manual:
         client_kwargs["aws_access_key_id"] = settings.aws_access_key_id_manual
         client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key_manual
-        logger.info("Initializing S3 client with explicit manual credentials.")
+        logger.info("Initializing S3 client with explicit credentials.")
     else:
-        logger.info(
-            "Initializing S3 client using IAM role/environment (forced in Lambda).")
-
+        logger.info("Initializing S3 client using IAM role/environment.")
     return boto3.client("s3", **client_kwargs)
 
 # ── Research Steps ────────────────────────────────────────────────────────────

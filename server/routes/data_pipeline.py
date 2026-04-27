@@ -53,24 +53,6 @@ class JobStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
-class ResearchRequest(BaseModel):
-    query: str
-    max_items: int = 20
-    require_all: bool = True
-    full_fetch_limit: int = 10
-    force_stats_refresh: bool = False
-
-
-class ResearchResponse(BaseModel):
-    query: str
-    matched_count: int
-    fetched_count: int
-    analyzed_count: int
-    vectors_upserted: int
-    s3_research_key: Optional[str] = None
-    execution_time_seconds: float
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Health & Status
 # ──────────────────────────────────────────────────────────────────────────────
@@ -185,36 +167,6 @@ async def get_job_status(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Data pipeline backend unreachable: {exc}",
             )
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Research Pipeline
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-@router.post("/research", response_model=ResearchResponse)
-async def trigger_research(
-    request: ResearchRequest,
-    admin_id: int = Depends(_get_current_admin_user_id),
-):
-    """
-    Trigger the research pipeline to fetch trade news/data for a query.
-
-    - Fetches articles from RSS feeds
-    - Processes with OpenAI for analysis
-    - Generates embeddings and upserts to Pinecone
-    - Optionally refreshes UN Comtrade stats
-    """
-    # Note: The research handler is a Lambda function, but we can invoke it
-    # via the research service for local testing. For production, this would
-    # invoke the Lambda directly via boto3.
-
-    # For now, return a mock response indicating the feature needs Lambda integration
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Research pipeline trigger requires Lambda integration. "
-               "Use the data pipeline backend directly or deploy to AWS Lambda.",
-    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────

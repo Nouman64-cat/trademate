@@ -48,7 +48,11 @@ export interface RouteResult {
   rate_source:         "live" | "static";
 }
 
+// Trade direction. PK_TO_US = Pakistan → USA, US_TO_PK = USA → Pakistan.
+export type RouteDirection = "PK_TO_US" | "US_TO_PK";
+
 export interface RouteEvaluationResponse {
+  direction:        RouteDirection;
   origin_city:      string;
   destination_city: string;
   cargo_type:       string;
@@ -62,12 +66,14 @@ export interface RouteEvaluationResponse {
 }
 
 export interface RouteOptions {
+  direction:          RouteDirection;
   origin_cities:      string[];
   destination_cities: string[];
   cargo_types: { value: string; label: string }[];
 }
 
 export interface RouteEvaluationRequest {
+  direction?:        RouteDirection;
   origin_city:       string;
   destination_city:  string;
   cargo_type:        string;

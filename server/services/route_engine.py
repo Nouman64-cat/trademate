@@ -1,10 +1,13 @@
 """
 services/route_engine.py — Trade Route Evaluation Engine
 
-Evaluates all viable Pakistan → USA shipping routes for a given cargo request.
+Evaluates all viable shipping routes for a given cargo request, in EITHER
+direction:
+  • PK_TO_US — Pakistan → USA  (data: data/pk_usa_routes.json)
+  • US_TO_PK — USA → Pakistan  (data: data/us_pk_routes.json)
 
-Algorithm:
-  1. Load static route graph (data/pk_usa_routes.json)
+Algorithm (per request):
+  1. Pick the route graph for req.direction
   2. Filter routes compatible with cargo_type and destination_city
   3. Calculate full cost breakdown and transit time for each route
   4. Normalize cost and time across all routes → [0, 1]
@@ -17,12 +20,14 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from schemas.routes import (
     CostBreakdown,
     RouteAlert,
+    RouteDirection,
     RouteEvaluationRequest,
     RouteEvaluationResponse,
     RouteResult,
@@ -33,43 +38,58 @@ from services.freightos_client import FreightosUnavailable
 
 logger = logging.getLogger(__name__)
 
-# ── Load static data ───────────────────────────────────────────────────────────
+# ── Direction-specific route graph ─────────────────────────────────────────────
+#
+# Each direction loads its own data file with its own routes, inland origins,
+# destination charges, duty rates, and per-shipment fixed fees. The cost
+# calculator pulls everything it needs from the active RouteGraph so the
+# calculation logic itself stays direction-agnostic.
 
-_DATA_PATH = Path(__file__).parent.parent / "data" / "pk_usa_routes.json"
+_DATA_DIR = Path(__file__).parent.parent / "data"
 
-with open(_DATA_PATH, encoding="utf-8") as _f:
-    _DATA = json.load(_f)
-
-_ROUTES            = _DATA["routes"]
-_INLAND_ORIGINS    = _DATA["inland_origins"]
-_DESTINATION_CHARGES = _DATA["destination_charges"]
-_HS_DUTY_RATES     = _DATA["hs_duty_rates"]
-_FIXED             = _DATA["fixed_charges"]
-
-# US city names that may appear verbatim in static route names
-_US_CITY_NAMES = [
-    "New York", "Los Angeles", "Long Beach", "Chicago",
-    "Miami", "Savannah", "Seattle", "Baltimore",
-    "US Both Coasts",
-]
+_PK_TO_US_PATH = _DATA_DIR / "pk_usa_routes.json"
+_US_TO_PK_PATH = _DATA_DIR / "us_pk_routes.json"
 
 
-def _localize_route_name(name: str, destination_city: str) -> str:
-    """Replace the hardcoded US city in a route name with the actual destination."""
-    dest = destination_city.title()
-    for city in _US_CITY_NAMES:
-        if city in name and city.lower() != dest.lower():
-            return name.replace(city, dest, 1)
-    return name
+@dataclass(frozen=True)
+class _RouteGraph:
+    direction: RouteDirection
+    routes: list
+    inland_origins: dict
+    destination_charges: dict
+    hs_duty_rates: dict
+    fixed: dict
+    # Air-gateway mapping for inland origin cities → (port_code, gateway_city)
+    air_gateway_by_origin: dict[str, tuple[str, str]]
+    # City names that may appear verbatim in static route names — used for
+    # localising the displayed route name when the user picks a non-default city.
+    origin_city_names_in_route_names: list[str]
+    destination_city_names_in_route_names: list[str]
 
 
-# ── Pakistan origin city → nearest international air gateway ──────────────────
-# Air routes in the static graph are all defined as "Karachi → …" using KHI.
-# For users exporting from northern/central Pakistan, the realistic air gateway
-# is LHE (Lahore), SKT (Sialkot), or ISB (Islamabad) — not KHI. The values here
-# let us re-base the displayed origin_port and route name per request.
+def _load_graph(path: Path,
+                direction: RouteDirection,
+                air_gateway_by_origin: dict[str, tuple[str, str]],
+                origin_cities_in_names: list[str],
+                destination_cities_in_names: list[str]) -> _RouteGraph:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return _RouteGraph(
+        direction=direction,
+        routes=data["routes"],
+        inland_origins=data["inland_origins"],
+        destination_charges=data["destination_charges"],
+        hs_duty_rates=data["hs_duty_rates"],
+        fixed=data["fixed_charges"],
+        air_gateway_by_origin=air_gateway_by_origin,
+        origin_city_names_in_route_names=origin_cities_in_names,
+        destination_city_names_in_route_names=destination_cities_in_names,
+    )
 
-_PK_ORIGIN_AIR_GATEWAY: dict[str, tuple[str, str]] = {
+
+# Pakistan air-gateway mapping — for PK_TO_US: where the user's PK origin city
+# trucks to. Reused by US_TO_PK as the destination-side mapping.
+_PK_AIR_GATEWAY: dict[str, tuple[str, str]] = {
     "Karachi":    ("KHI", "Karachi"),
     "Lahore":     ("LHE", "Lahore"),
     "Faisalabad": ("LHE", "Lahore"),     # FSL has no wide-body intl cargo; trucks to LHE
@@ -79,38 +99,114 @@ _PK_ORIGIN_AIR_GATEWAY: dict[str, tuple[str, str]] = {
     "Multan":     ("LHE", "Lahore"),
 }
 
-_PK_ORIGIN_CITIES_IN_ROUTE_NAMES = ["Karachi", "Lahore", "Sialkot", "Islamabad"]
+# US air-gateway mapping — for US_TO_PK: where the user's US origin city
+# trucks to.
+_US_AIR_GATEWAY: dict[str, tuple[str, str]] = {
+    "New York":     ("JFK", "JFK"),
+    "Los Angeles":  ("LAX", "LAX"),
+    "Long Beach":   ("LAX", "LAX"),
+    "Chicago":      ("ORD", "ORD"),
+    "Miami":        ("MIA", "MIA"),
+    "Atlanta":      ("ATL", "ATL"),
+    "Houston":      ("IAH", "IAH"),
+    "Dallas":       ("DFW", "DFW"),
+    "Seattle":      ("SEA", "SEA"),
+    "Savannah":     ("ATL", "ATL"),  # SAV cargo is light; trucks to ATL
+}
+
+_US_CITY_NAMES = [
+    "New York", "Los Angeles", "Long Beach", "Chicago",
+    "Miami", "Savannah", "Seattle", "Baltimore",
+    "US Both Coasts",
+]
+_PK_CITY_NAMES = [
+    "Karachi", "Lahore", "Sialkot", "Islamabad",
+    "Faisalabad", "Multan", "Peshawar",
+]
 
 
-def _localize_air_route(route: dict, origin_city: str) -> dict:
+_GRAPHS: dict[RouteDirection, _RouteGraph] = {
+    "PK_TO_US": _load_graph(
+        _PK_TO_US_PATH, "PK_TO_US",
+        air_gateway_by_origin=_PK_AIR_GATEWAY,
+        origin_cities_in_names=_PK_CITY_NAMES,
+        destination_cities_in_names=_US_CITY_NAMES,
+    ),
+    "US_TO_PK": _load_graph(
+        _US_TO_PK_PATH, "US_TO_PK",
+        air_gateway_by_origin=_US_AIR_GATEWAY,
+        origin_cities_in_names=_US_CITY_NAMES,
+        destination_cities_in_names=_PK_CITY_NAMES,
+    ),
+}
+
+
+# ── Backward-compat module-level aliases ──────────────────────────────────────
+# The existing `/v1/routes/options` endpoint and a few other call sites read
+# these directly. They now reflect the PK_TO_US graph (the only direction that
+# existed before). New code should prefer the per-direction graph helpers below.
+
+_PK_TO_US_GRAPH = _GRAPHS["PK_TO_US"]
+_ROUTES              = _PK_TO_US_GRAPH.routes
+_INLAND_ORIGINS      = _PK_TO_US_GRAPH.inland_origins
+_DESTINATION_CHARGES = _PK_TO_US_GRAPH.destination_charges
+_HS_DUTY_RATES       = _PK_TO_US_GRAPH.hs_duty_rates
+_FIXED               = _PK_TO_US_GRAPH.fixed
+
+
+def get_options(direction: RouteDirection = "PK_TO_US") -> dict:
+    """Return the available origin/destination cities for a given direction.
+
+    Used by /v1/routes/options to populate the route-evaluation form.
+    """
+    g = _GRAPHS[direction]
+    return {
+        "direction": direction,
+        "origin_cities": sorted(g.inland_origins.keys()),
+        "destination_cities": sorted(g.destination_charges.keys()),
+    }
+
+
+def _localize_route_name(name: str, replacement_city: str, source_cities: list[str]) -> str:
+    """Replace a hardcoded city name in a route name with the user's actual choice.
+
+    `source_cities` is the list of city names that may appear in the static
+    route-name templates (US cities for PK_TO_US, PK cities for US_TO_PK).
+    """
+    target = replacement_city.title()
+    for city in source_cities:
+        if city in name and city.lower() != target.lower():
+            return name.replace(city, target, 1)
+    return name
+
+
+def _localize_air_route(route: dict, origin_city: str, graph: _RouteGraph) -> dict:
     """Return a shallow copy of an AIR route with origin_port and displayed
-    origin city rewritten to the user's nearest Pakistani air gateway."""
-    port_code, city_name = _PK_ORIGIN_AIR_GATEWAY.get(origin_city, ("KHI", "Karachi"))
+    origin city rewritten to the user's nearest air gateway for the active
+    direction."""
+    default_pair = next(iter(graph.air_gateway_by_origin.values()), ("", ""))
+    port_code, city_name = graph.air_gateway_by_origin.get(origin_city, default_pair)
+    if not port_code:
+        return route
     localized = dict(route)
     localized["origin_port"] = port_code
     name = route.get("name", "")
-    for existing in _PK_ORIGIN_CITIES_IN_ROUTE_NAMES:
+    for existing in graph.origin_city_names_in_route_names:
         if name.startswith(f"{existing} →") and existing != city_name:
             localized["name"] = name.replace(existing, city_name, 1)
             break
     return localized
 
 
-# ── Destination → region mapping (for route filtering) ────────────────────────
-
-_DEST_REGION: dict[str, str] = {
-    d: info["region"] for d, info in _DESTINATION_CHARGES.items()
-}
-
-
 # ── Duty rate lookup ───────────────────────────────────────────────────────────
 
-def _get_duty_rate(hs_code: str | None) -> float:
-    """Return import duty rate (0–1) for a given HS code chapter."""
+def _get_duty_rate(hs_code: str | None, graph: _RouteGraph) -> float:
+    """Return import duty rate (0–1) for a given HS code chapter on the
+    destination side of the active direction."""
     if not hs_code:
-        return _HS_DUTY_RATES["default"]
+        return graph.hs_duty_rates["default"]
     chapter = hs_code.strip().lstrip("0")[:2].zfill(2)
-    return _HS_DUTY_RATES.get(chapter, _HS_DUTY_RATES["default"])
+    return graph.hs_duty_rates.get(chapter, graph.hs_duty_rates["default"])
 
 
 # ── Chargeable weight for air (IATA volumetric formula) ───────────────────────
@@ -130,7 +226,29 @@ def _chargeable_weight_kg(
 
 # ── Route filter ───────────────────────────────────────────────────────────────
 
-def _route_is_applicable(route: dict, cargo_type: str, dest_region: str) -> bool:
+# Region-pair compatibility table for sea/multimodal routes per direction.
+# Maps (direction, dest_region) → set of route_region values that can serve it.
+# AIR routes are filtered separately: they require an exact region match.
+_SEA_REGION_COMPATIBILITY: dict[tuple[RouteDirection, str], set[str]] = {
+    # Pakistan → USA: West-coast destinations only get USWC sea service;
+    # East-coast destinations don't get USWC; Midwest accepts everything via rail.
+    ("PK_TO_US", "USWC"): {"USWC", "BOTH"},
+    ("PK_TO_US", "USEC"): {"USEC", "BOTH"},
+    ("PK_TO_US", "USMW"): {"USWC", "USEC", "BOTH"},  # rail to Chicago either coast
+    # USA → Pakistan: every PK destination is reachable from any incoming
+    # sea hub — the country is small enough that inland drayage covers it.
+    ("US_TO_PK", "PKSOUTH"):   {"PKSOUTH", "BOTH"},
+    ("US_TO_PK", "PKCENTRAL"): {"PKSOUTH", "PKCENTRAL", "BOTH"},
+    ("US_TO_PK", "PKNORTH"):   {"PKSOUTH", "PKCENTRAL", "PKNORTH", "BOTH"},
+}
+
+
+def _route_is_applicable(
+    route: dict,
+    cargo_type: str,
+    dest_region: str,
+    direction: RouteDirection,
+) -> bool:
     """Return True if this route can carry the cargo_type to the destination region."""
     mode = route["mode"]
 
@@ -152,20 +270,16 @@ def _route_is_applicable(route: dict, cargo_type: str, dest_region: str) -> bool
         return True
 
     # AIR routes fly into a specific airport — exact region match only.
-    # (No routing Chicago ORD for New York, or JFK for Chicago.)
     if cargo_type == "AIR":
         return route_region == dest_region
 
-    # SEA/LCL destination region filter
-    if dest_region == "USWC" and route_region != "USWC":
-        return False
-    if dest_region == "USEC" and route_region == "USWC":
-        return False
-    # USMW (Chicago): sea routes from any coast are valid via inland rail
-    if dest_region == "USMW":
+    # SEA/LCL: consult the per-direction compatibility table.
+    allowed = _SEA_REGION_COMPATIBILITY.get((direction, dest_region))
+    if allowed is None:
+        # Unknown destination region — fall back to permissive matching so a
+        # mis-tagged data file doesn't lose all routes silently.
         return True
-
-    return True
+    return route_region in allowed
 
 
 # ── Cost calculator ────────────────────────────────────────────────────────────
@@ -177,9 +291,11 @@ def _calculate_cost(
     dest: dict,
     duty_rate: float,
     chargeable_kg: float,
+    graph: _RouteGraph,
 ) -> CostBreakdown:
     ct = req.cargo_type
     rates = route["freight_rates"]
+    fixed_cfg = graph.fixed
     # FCL: costs that scale per container; AIR/LCL: always 1 unit
     n_units = req.container_count if ct.startswith("FCL") else 1
 
@@ -216,24 +332,47 @@ def _calculate_cost(
     n_hubs = len([h for h in route["hubs"] if "Canal" not in h])  # canals don't charge THC
     trans_thc = route["transshipment_thc_usd"] * n_hubs * n_units if ct != "AIR" else 0
 
-    # 5. Fixed charges — per B/L (once per shipment, not per container)
-    fixed = (
-        _FIXED["isf_filing_usd"]
-        + _FIXED["bl_fee_usd"]
-        + _FIXED["seal_fee_usd"]
-        + _FIXED["isps_surcharge_usd"]
-        + _FIXED["documentation_usd"]
-    ) if ct != "AIR" else _FIXED["documentation_usd"]
+    # 5. Fixed charges — per B/L (once per shipment, not per container).
+    # Each direction declares its own per-shipment levies in fixed_charges:
+    #   PK_TO_US: ISF, B/L, seal, ISPS, documentation (US export-side)
+    #   US_TO_PK: B/L, seal, ISPS, documentation, PK wharfage + handling
+    if ct == "AIR":
+        fixed = fixed_cfg.get("documentation_usd", 0)
+    else:
+        fixed = (
+            fixed_cfg.get("isf_filing_usd", 0)
+            + fixed_cfg.get("bl_fee_usd", 0)
+            + fixed_cfg.get("seal_fee_usd", 0)
+            + fixed_cfg.get("isps_surcharge_usd", 0)
+            + fixed_cfg.get("documentation_usd", 0)
+            + fixed_cfg.get("pk_wharfage_usd", 0)
+            + fixed_cfg.get("pk_port_handling_usd", 0)
+        )
 
     # 6. Destination charges (THC per container, broker/drayage per container)
     dest_thc    = dest["thc_usd"] * n_units if ct != "AIR" else 0
     broker      = dest["customs_broker_usd"]
     drayage     = dest["drayage_usd"] * n_units
 
-    # 7. Government fees (on cargo value)
-    hmf = round(req.cargo_value_usd * _FIXED["hmf_rate"], 2)
-    mpf_raw = req.cargo_value_usd * _FIXED["mpf_rate"]
-    mpf = round(max(_FIXED["mpf_min_usd"], min(_FIXED["mpf_max_usd"], mpf_raw)), 2)
+    # 7. Government levies on cargo value. Stored in the same CostBreakdown
+    # fields (hmf/mpf) regardless of direction so the response schema and the
+    # frontend widget stay unchanged.
+    #   PK_TO_US: hmf = US Harbor Maintenance Fee, mpf = US Merchandise Processing Fee
+    #   US_TO_PK: hmf = PK Wharfage levy proxy (set to 0 here — already in `fixed`),
+    #             mpf = PK Withholding Tax (income-tax withholding on commercial imports)
+    if graph.direction == "PK_TO_US":
+        hmf = round(req.cargo_value_usd * fixed_cfg.get("hmf_rate", 0), 2)
+        mpf_raw = req.cargo_value_usd * fixed_cfg.get("mpf_rate", 0)
+        mpf_min = fixed_cfg.get("mpf_min_usd", 0)
+        mpf_max = fixed_cfg.get("mpf_max_usd", 0)
+        if mpf_max > 0:
+            mpf = round(max(mpf_min, min(mpf_max, mpf_raw)), 2)
+        else:
+            mpf = round(mpf_raw, 2)
+    else:  # US_TO_PK
+        hmf = 0.0
+        wht_rate = fixed_cfg.get("pk_withholding_tax_rate", 0)
+        mpf = round(req.cargo_value_usd * wht_rate, 2)
 
     # 8. Import duty
     import_duty = round(req.cargo_value_usd * duty_rate, 2)
@@ -374,20 +513,29 @@ def evaluate_routes(
     conversation_id: Optional[str] = None,
     message_id: Optional[int] = None,
 ) -> RouteEvaluationResponse:
+    # Pick the active graph based on the requested direction
+    graph = _GRAPHS[req.direction]
+
     # Validate origin
-    inland = _INLAND_ORIGINS.get(req.origin_city)
+    inland = graph.inland_origins.get(req.origin_city)
     if not inland:
-        available = list(_INLAND_ORIGINS.keys())
-        raise ValueError(f"Unknown origin city '{req.origin_city}'. Available: {available}")
+        available = list(graph.inland_origins.keys())
+        raise ValueError(
+            f"Unknown origin city '{req.origin_city}' for direction "
+            f"{req.direction}. Available: {available}"
+        )
 
     # Validate destination
-    dest = _DESTINATION_CHARGES.get(req.destination_city)
+    dest = graph.destination_charges.get(req.destination_city)
     if not dest:
-        available = list(_DESTINATION_CHARGES.keys())
-        raise ValueError(f"Unknown destination city '{req.destination_city}'. Available: {available}")
+        available = list(graph.destination_charges.keys())
+        raise ValueError(
+            f"Unknown destination city '{req.destination_city}' for direction "
+            f"{req.direction}. Available: {available}"
+        )
 
     dest_region = dest["region"]
-    duty_rate   = _get_duty_rate(req.hs_code)
+    duty_rate   = _get_duty_rate(req.hs_code, graph)
 
     # Chargeable weight for air
     chargeable_kg = 0.0
@@ -402,22 +550,25 @@ def evaluate_routes(
         )
 
     logger.info(
-        "[ROUTE] Evaluating %s→%s  cargo=%s  value=$%.0f  hs=%s  α=%.2f",
-        req.origin_city, req.destination_city, req.cargo_type,
+        "[ROUTE] Evaluating [%s] %s→%s  cargo=%s  value=$%.0f  hs=%s  α=%.2f",
+        req.direction, req.origin_city, req.destination_city, req.cargo_type,
         req.cargo_value_usd, req.hs_code or "N/A", req.cost_weight,
     )
 
     # ── Pre-fetch live rates concurrently (deduplicated) ──────────────────────
-    applicable_routes = [r for r in _ROUTES if _route_is_applicable(r, req.cargo_type, dest_region)]
+    applicable_routes = [
+        r for r in graph.routes
+        if _route_is_applicable(r, req.cargo_type, dest_region, req.direction)
+    ]
     if req.cargo_type == "AIR":
-        applicable_routes = [_localize_air_route(r, req.origin_city) for r in applicable_routes]
+        applicable_routes = [_localize_air_route(r, req.origin_city, graph) for r in applicable_routes]
     live_rates = _prefetch_live_rates(applicable_routes, req, chargeable_kg)
 
     # ── Build route results ────────────────────────────────────────────────────
     results: list[RouteResult] = []
 
     for route in applicable_routes:
-        cost    = _calculate_cost(route, req, inland, dest, duty_rate, chargeable_kg)
+        cost    = _calculate_cost(route, req, inland, dest, duty_rate, chargeable_kg, graph)
         transit = _calculate_transit(route, inland, req.cargo_type)
         alerts  = [RouteAlert(**a) for a in route["alerts"]]
         rate_source = "live"
@@ -460,7 +611,11 @@ def evaluate_routes(
         display_name = (
             route["name"]
             if route["mode"] == "AIR"
-            else _localize_route_name(route["name"], req.destination_city)
+            else _localize_route_name(
+                route["name"],
+                req.destination_city,
+                graph.destination_city_names_in_route_names,
+            )
         )
         results.append(RouteResult(
             id=route["id"],
@@ -530,6 +685,7 @@ def evaluate_routes(
     )
 
     response = RouteEvaluationResponse(
+        direction=req.direction,
         origin_city=req.origin_city,
         destination_city=req.destination_city,
         cargo_type=req.cargo_type,

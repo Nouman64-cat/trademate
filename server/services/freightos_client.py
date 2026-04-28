@@ -27,31 +27,75 @@ _BASE_URL   = "https://ship.freightos.com/api/shippingCalculator"
 _TIMEOUT_S  = 10
 
 # ── UNLOCODE mappings ──────────────────────────────────────────────────────────
-# Maps port name strings (from pk_usa_routes.json) → UNLOCODE
+# Each map serves both directions: when an entry's *string form* appears as
+# either an origin or a destination in a route definition, _resolve_ports will
+# look it up. PK_TO_US uses Pakistan as origin / USA as destination; US_TO_PK
+# uses USA as origin / Pakistan as destination. Same UNLOCODE table either way.
 
-_ORIGIN_SEA_UNLOCODE: dict[str, str] = {
-    "Karachi (PKKHI)": "PKKHI",
+_PK_PORT_UNLOCODE: dict[str, str] = {
+    # Sea
+    "Karachi (PKKHI)":   "PKKHI",
+    "Karachi":           "PKKHI",
+    "PKKHI":             "PKKHI",
+    "PKKHIA":            "PKKHI",   # alias used in pk_usa_routes.json
+    "Port Qasim":        "PKBQM",
+    "Port Qasim (PKBQM)":"PKBQM",
+    "PKBQM":             "PKBQM",
+    # Air gateways (Freightos uses the city UNLOCODE for air too)
+    "Karachi Intl (KHI)": "PKKHI",
+    "KHI":               "PKKHI",
+    "Lahore (LHE)":      "PKLHE",
+    "LHE":               "PKLHE",
+    "Islamabad (ISB)":   "PKISB",
+    "ISB":               "PKISB",
+    "Sialkot (SKT)":     "PKSKT",
+    "SKT":               "PKSKT",
 }
 
-_DEST_SEA_UNLOCODE: dict[str, str] = {
+_US_PORT_UNLOCODE: dict[str, str] = {
+    # Sea
     "Los Angeles (USLAX)": "USLAX",
+    "USLAX":               "USLAX",
     "Long Beach (USLGB)":  "USLGB",
+    "USLGB":               "USLGB",
     "New York (USNYC)":    "USNYC",
+    "USNYC":               "USNYC",
+    "USNYK":               "USNYC",   # alias
     "Savannah (USSAV)":    "USSAV",
+    "USSAV":               "USSAV",
+    "Baltimore (USBAL)":   "USBAL",
+    "USBAL":               "USBAL",
     "Miami (USMIA)":       "USMIA",
+    "USMIA":               "USMIA",
     "Seattle (USSEA)":     "USSEA",
+    "USSEA":               "USSEA",
+    "Houston (USHOU)":     "USHOU",
+    "USHOU":               "USHOU",
+    # Air gateways
+    "JFK":     "USNYC",
+    "New York JFK (JFK)": "USNYC",
+    "ORD":     "USCHI",
+    "Chicago O'Hare (ORD)": "USCHI",
+    "USCHI":   "USCHI",
+    "LAX":     "USLAX",   # LAX airport in LA
+    "Los Angeles (LAX)":   "USLAX",
+    "MIA":     "USMIA",
+    "Miami (MIA)":         "USMIA",
+    "ATL":     "USATL",
+    "Atlanta (ATL)":       "USATL",
+    "DFW":     "USDFW",
+    "IAH":     "USHOU",   # IAH airport ≈ Houston for cargo lookup
+    "SEA":     "USSEA",
 }
 
-_ORIGIN_AIR_UNLOCODE: dict[str, str] = {
-    "Karachi Intl (KHI)": "PKKHI",  # KHI airport city = Karachi
-}
+# Direction-keyed lookup: which side of the lane is origin and which is destination?
+# When a code is missing on the expected side, _resolve_ports raises
+# FreightosUnavailable — the engine then falls back to static rates.
 
-_DEST_AIR_UNLOCODE: dict[str, str] = {
-    "New York JFK (JFK)":    "USNYC",
-    "Chicago O'Hare (ORD)":  "USCHI",
-    "Los Angeles (LAX)":     "USLAX",
-    "Miami (MIA)":           "USMIA",
-}
+_ORIGIN_SEA_UNLOCODE: dict[str, str] = {**_PK_PORT_UNLOCODE, **_US_PORT_UNLOCODE}
+_DEST_SEA_UNLOCODE:   dict[str, str] = {**_PK_PORT_UNLOCODE, **_US_PORT_UNLOCODE}
+_ORIGIN_AIR_UNLOCODE: dict[str, str] = {**_PK_PORT_UNLOCODE, **_US_PORT_UNLOCODE}
+_DEST_AIR_UNLOCODE:   dict[str, str] = {**_PK_PORT_UNLOCODE, **_US_PORT_UNLOCODE}
 
 # Cargo type → Freightos loadtype param
 _LOADTYPE_MAP: dict[str, str] = {

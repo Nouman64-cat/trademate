@@ -16,9 +16,10 @@ import { useThemeStore } from "@/stores/themeStore";
 // ── Map helpers (mirrors routes/page.tsx) ────────────────────────────────────
 
 const ROUTE_COORDINATES: Record<string, [number, number]> = {
-  // ── Pakistan origin ports ──────────────────────────────────────────────────
+  // ── Pakistan ports / air gateways (origin for PK_TO_US, destination for US_TO_PK)
   PKKHI:  [24.8615, 67.0099],
   PKKHIA: [24.8615, 67.0099],  // alias used in pk_usa_routes.json
+  PKBQM:  [24.7872, 67.3431],  // Port Qasim
   KHI:    [24.9061, 67.1605],
   LHE:    [31.5216, 74.4036],  // Allama Iqbal Intl (Lahore)
   ISB:    [33.5593, 72.8258],  // Islamabad Intl
@@ -32,20 +33,28 @@ const ROUTE_COORDINATES: Record<string, [number, number]> = {
   MYPKG:        [2.9734,  101.4094],
   "Port Klang": [2.9734,  101.4094],  // plain name used in pk_usa_routes.json
   AEJEA:        [25.0555,  55.0537],
+  "Jebel Ali":  [25.0140,  55.1300],  // hub used in us_pk_routes.json
   DXB:          [25.2532,  55.3657],
+  "Dubai (DXB)":[25.2532,  55.3657],
   DOH:          [25.2736,  51.6080],
+  "Doha (DOH)": [25.2736,  51.6080],
   IST:          [41.2762,  28.7519],
+  "Istanbul (IST)": [41.2762, 28.7519],
   "Port Said":  [31.2565,  32.2841],  // plain name used in pk_usa_routes.json
 
   // ── Canals ────────────────────────────────────────────────────────────────
   "Suez Canal":   [30.5495,  32.3137],
   "Panama Canal": [ 9.0800, -79.6800],
 
-  // ── US destination ports ──────────────────────────────────────────────────
+  // ── US ports / air gateways (destination for PK_TO_US, origin for US_TO_PK)
   JFK:   [40.6413,  -73.7781],
   ORD:   [41.9742,  -87.9073],
   LAX:   [33.9416, -118.4085],
   MIA:   [25.7959,  -80.2870],
+  ATL:   [33.6407,  -84.4277],
+  DFW:   [32.8998,  -97.0403],
+  IAH:   [29.9902,  -95.3368],  // Houston Intercontinental
+  SEA:   [47.4502, -122.3088],  // Seattle-Tacoma airport
   USLAX: [33.7405, -118.2775],
   USLGB: [33.7500, -118.2167],
   USNYC: [40.6782,  -73.9442],
@@ -55,6 +64,9 @@ const ROUTE_COORDINATES: Record<string, [number, number]> = {
   USMIA: [25.7959,  -80.2870],
   USCHI: [41.8781,  -87.6298],
   USSEA: [47.6062, -122.3321],
+  USHOU: [29.7604,  -95.3698],  // Houston port
+  USATL: [33.7490,  -84.3880],
+  USDFW: [32.7767,  -96.7970],
 
   // ── City name fallbacks (used when port code lookup fails) ────────────────
   "Karachi":     [24.8607,   67.0011],
@@ -65,11 +77,15 @@ const ROUTE_COORDINATES: Record<string, [number, number]> = {
   "Peshawar":    [34.0151,   71.5249],
   "Multan":      [30.1575,   71.5249],
   "Los Angeles": [34.0522, -118.2437],
+  "Long Beach":  [33.7701, -118.1937],
   "New York":    [40.7128,  -74.0060],
   "Chicago":     [41.8781,  -87.6298],
   "Miami":       [25.7617,  -80.1918],
   "Savannah":    [32.0809,  -81.0912],
   "Seattle":     [47.6062, -122.3321],
+  "Houston":     [29.7604,  -95.3698],
+  "Dallas":      [32.7767,  -96.7970],
+  "Atlanta":     [33.7490,  -84.3880],
 };
 
 function getLocationCoordinates(location: string): [number, number] | null {

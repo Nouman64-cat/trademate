@@ -1,11 +1,15 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from schemas.routes import RouteEvaluationRequest, RouteEvaluationResponse
+from schemas.routes import (
+    RouteDirection,
+    RouteEvaluationRequest,
+    RouteEvaluationResponse,
+)
 from security.security import decode_access_token
-from services.route_engine import evaluate_routes
+from services.route_engine import evaluate_routes, get_options as _engine_options
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ def _get_current_user_id(
 @router.post(
     "/routes/evaluate",
     response_model=RouteEvaluationResponse,
-    summary="Evaluate all viable Pakistan → USA shipping routes",
+    summary="Evaluate all viable shipping routes (Pakistan ↔ USA, both directions)",
 )
 def evaluate(
     body: RouteEvaluationRequest,
@@ -39,14 +43,20 @@ def evaluate(
     Given origin city, destination, cargo details, and cost/time preference,
     returns all viable routes ranked by a weighted score.
 
+    The request body's `direction` field selects the trade lane:
+      - `PK_TO_US` (default) — Pakistan exports to the USA. Origin city must be
+        Pakistani; destination must be in the USA. US import duties + HMF/MPF apply.
+      - `US_TO_PK` — USA exports to Pakistan. Origin must be a US city;
+        destination must be in Pakistan. PK import duties + withholding-tax apply.
+
     The `cost_weight` parameter (0–1) controls the optimization:
       - 0.0 → minimize transit time (fastest route wins)
       - 1.0 → minimize total cost (cheapest route wins)
       - 0.5 → balanced (default)
     """
     try:
-        logger.info("[ROUTES] user_id=%d  %s→%s  %s  $%.0f",
-                    user_id, body.origin_city, body.destination_city,
+        logger.info("[ROUTES] user_id=%d  [%s] %s→%s  %s  $%.0f",
+                    user_id, body.direction, body.origin_city, body.destination_city,
                     body.cargo_type, body.cargo_value_usd)
         return evaluate_routes(body, user_id=user_id)
     except ValueError as exc:
@@ -55,17 +65,22 @@ def evaluate(
 
 @router.get(
     "/routes/options",
-    summary="Return available origin cities, destination cities, and cargo types",
+    summary="Return available origin cities, destination cities, and cargo types for a direction",
 )
-def get_options(_user_id: int = Depends(_get_current_user_id)):
-    """Returns the valid input options for the route evaluation form."""
-    from services.route_engine import (
-        _DESTINATION_CHARGES,
-        _INLAND_ORIGINS,
-    )
+def get_options(
+    direction: RouteDirection = Query(
+        "PK_TO_US",
+        description="Trade direction. PK_TO_US = Pakistan→USA, US_TO_PK = USA→Pakistan.",
+    ),
+    _user_id: int = Depends(_get_current_user_id),
+):
+    """Returns the valid input options for the route evaluation form, scoped
+    to the requested direction."""
+    opts = _engine_options(direction)
     return {
-        "origin_cities":      sorted(_INLAND_ORIGINS.keys()),
-        "destination_cities": sorted(_DESTINATION_CHARGES.keys()),
+        "direction":          opts["direction"],
+        "origin_cities":      opts["origin_cities"],
+        "destination_cities": opts["destination_cities"],
         "cargo_types": [
             {"value": "FCL_20",  "label": "FCL 20' (Full Container)"},
             {"value": "FCL_40",  "label": "FCL 40' (Full Container)"},

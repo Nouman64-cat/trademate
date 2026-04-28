@@ -1,19 +1,40 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
 # ── Request ────────────────────────────────────────────────────────────────────
 
+# Trade direction. The two route graphs (server/data/pk_usa_routes.json and
+# server/data/us_pk_routes.json) are mirrors of each other with country-
+# specific origin/destination fees, customs duty tables, and government levies.
+RouteDirection = Literal["PK_TO_US", "US_TO_PK"]
+
+
 class RouteEvaluationRequest(BaseModel):
+    direction: RouteDirection = Field(
+        default="PK_TO_US",
+        description=(
+            "Trade direction. PK_TO_US = exporting from Pakistan to the USA "
+            "(default; uses US import duties + HMF/MPF). US_TO_PK = exporting "
+            "from the USA to Pakistan (uses Pakistani import duties + "
+            "withholding tax + Pakistani port fees)."
+        ),
+    )
     origin_city: str = Field(
         ...,
-        description="City of origin in Pakistan",
-        examples=["Karachi", "Lahore", "Faisalabad"]
+        description=(
+            "City of origin. Must be in Pakistan when direction=PK_TO_US, "
+            "or in the USA when direction=US_TO_PK."
+        ),
+        examples=["Karachi", "Lahore", "Los Angeles", "New York"],
     )
     destination_city: str = Field(
         ...,
-        description="Destination city in the USA",
-        examples=["Los Angeles", "New York", "Chicago"]
+        description=(
+            "Destination city. Must be in the USA when direction=PK_TO_US, "
+            "or in Pakistan when direction=US_TO_PK."
+        ),
+        examples=["Los Angeles", "New York", "Karachi", "Lahore"],
     )
     cargo_type: str = Field(
         ...,
@@ -114,6 +135,7 @@ class RouteResult(BaseModel):
 
 
 class RouteEvaluationResponse(BaseModel):
+    direction:        RouteDirection = "PK_TO_US"
     origin_city:      str
     destination_city: str
     cargo_type:       str

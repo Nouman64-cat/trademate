@@ -1188,11 +1188,32 @@ def search_trade_documents(query: str) -> str:
 
 
 class _RouteEvalInput(BaseModel):
+    direction: str = Field(
+        default="PK_TO_US",
+        description=(
+            "Trade direction. Pass 'PK_TO_US' for Pakistan → USA exports "
+            "(default; origin must be Pakistani, destination must be USA). "
+            "Pass 'US_TO_PK' for USA → Pakistan exports (origin must be US, "
+            "destination must be Pakistan). Always set this explicitly when "
+            "the user mentions both countries — DON'T leave it as default if "
+            "the user is asking about USA→Pakistan."
+        ),
+    )
     origin_city: str = Field(
-        description="Origin city in Pakistan (e.g. Karachi, Lahore, Faisalabad, Sialkot, Islamabad, Multan, Peshawar)"
+        description=(
+            "Origin city. For PK_TO_US: Karachi, Lahore, Faisalabad, Sialkot, "
+            "Islamabad, Multan, or Peshawar. For US_TO_PK: Los Angeles, Long "
+            "Beach, New York, Chicago, Miami, Savannah, Seattle, Houston, "
+            "Dallas, or Atlanta. MUST match the direction or the tool will fail."
+        )
     )
     destination_city: str = Field(
-        description="Destination city in the USA (e.g. Los Angeles, New York, Chicago, Miami, Savannah, Seattle). MUST be spelled correctly."
+        description=(
+            "Destination city. For PK_TO_US: Los Angeles, Long Beach, New "
+            "York, Chicago, Miami, Savannah, Seattle, Baltimore, or Houston. "
+            "For US_TO_PK: Karachi, Lahore, Faisalabad, Sialkot, Islamabad, "
+            "Multan, or Peshawar. MUST match the direction. Spell exactly."
+        )
     )
     cargo_type: str = Field(
         description="Cargo type: FCL_20, FCL_40, FCL_40HC, LCL, or AIR"
@@ -1203,12 +1224,13 @@ class _RouteEvalInput(BaseModel):
     hs_code: Optional[str] = Field(
         default=None,
         description=(
-            "HS/HTS code chapter (first 2 digits, e.g. '42') used to look up the US "
-            "import duty rate. YOU MUST PASS THIS — omitting it falls back to a generic "
-            "5% default which WILL be wrong for most products and produces a misleading "
-            "widget. If search_us_hs_data has already returned an HTS code this turn, "
-            "use the first 2 digits of that code (4202.11.00 → '42', 6109.10.00 → '61'). "
-            "If not, infer the chapter from the product: leather goods/bags/wallets → '42', "
+            "HS/HTS code chapter (first 2 digits, e.g. '42') used to look up "
+            "the destination-side import duty rate (US duty for PK_TO_US, "
+            "Pakistani duty for US_TO_PK). YOU MUST PASS THIS — omitting it "
+            "falls back to a coarse default which produces a misleading widget. "
+            "If a tariff tool has already returned an HS/HTS code this turn, "
+            "use the first 2 digits (4202.11.00 → '42', 6109.10.00 → '61'). "
+            "Otherwise infer from the product: leather goods/bags/wallets → '42', "
             "apparel/knit → '61', apparel/woven → '62', textiles/cotton → '52', "
             "footwear → '64', rice → '10', mangoes/fruit → '08', steel articles → '73', "
             "electronics → '85', vehicles → '87', furniture → '94', toys → '95'. "
@@ -1239,6 +1261,7 @@ def evaluate_shipping_routes(
     destination_city: str,
     cargo_type: str,
     cargo_value_usd: float,
+    direction: str = "PK_TO_US",
     hs_code: Optional[str] = None,
     cargo_volume_cbm: Optional[float] = None,
     cargo_weight_kg: Optional[float] = None,
@@ -1246,24 +1269,32 @@ def evaluate_shipping_routes(
     cost_weight: float = 0.5,
 ) -> str:
     """
-    Evaluate all viable shipping routes from a Pakistan city to a USA city.
+    Evaluate all viable shipping routes between Pakistan and the USA in EITHER
+    direction.
 
     Use this tool when the user asks about:
-    - Shipping routes from Pakistan to the USA
+    - Shipping routes Pakistan → USA  (set direction="PK_TO_US")
+    - Shipping routes USA → Pakistan  (set direction="US_TO_PK")
     - Freight costs, ocean freight rates, air freight rates
-    - Transit times for Pakistan → USA shipments
+    - Transit times for either-direction shipments
     - Comparing shipping options (FCL, LCL, Air)
     - Import duties, logistics costs, or total landed cost estimates
 
     Returns a summary of available routes with costs, transit times, and
     carrier options. An interactive route widget will be shown to the user.
 
+    DIRECTION RULES:
+    - If the user says "from Pakistan to USA" / "exporting to USA" → direction="PK_TO_US"
+    - If the user says "from USA to Pakistan" / "importing into Pakistan" → direction="US_TO_PK"
+    - origin_city and destination_city MUST match the direction. Mixing them
+      (e.g. direction="PK_TO_US" with origin="Los Angeles") will fail.
+
     DO NOT use this tool for HS code lookups, tariff rates, or trade policy questions —
     use the Memgraph tools for those.
 
     CRITICAL: always pass hs_code (the 2-digit chapter). Without it the duty defaults
-    to 5% and the widget will display an inaccurate rate. See the hs_code field
-    description for the product→chapter mapping.
+    to a coarse value and the widget will display an inaccurate rate. The duty applies
+    to the destination side: US tariff for PK_TO_US, Pakistani customs for US_TO_PK.
     """
     try:
         from schemas.routes import RouteEvaluationRequest
@@ -1273,7 +1304,17 @@ def evaluate_shipping_routes(
         user_id = ctx.get("user_id")
         conversation_id = ctx.get("conversation_id")
 
+        # Normalize direction value — be permissive about casing/spacing variants
+        # the LLM might emit, but reject anything else cleanly.
+        direction_norm = (direction or "PK_TO_US").upper().replace("-", "_").replace(" ", "_")
+        if direction_norm not in ("PK_TO_US", "US_TO_PK"):
+            return (
+                f"TOOL_ERROR: invalid direction '{direction}'. Pass 'PK_TO_US' "
+                "for Pakistan→USA shipments or 'US_TO_PK' for USA→Pakistan."
+            )
+
         req = RouteEvaluationRequest(
+            direction=direction_norm,
             origin_city=origin_city,
             destination_city=destination_city,
             cargo_type=cargo_type,
@@ -1285,9 +1326,9 @@ def evaluate_shipping_routes(
             cost_weight=cost_weight,
         )
         result = evaluate_routes(
-            req, 
-            user_id=user_id, 
-            conversation_id=conversation_id
+            req,
+            user_id=user_id,
+            conversation_id=conversation_id,
         )
 
         # Push full result into the per-request widget store so chat.py can
@@ -1295,16 +1336,21 @@ def evaluate_shipping_routes(
         store = route_widget_ctx.get(None)
         if store is not None:
             store.append(result.model_dump())
-            
+
         # Log interaction
         if user_id:
             log_interaction(
                 user_id=user_id,
                 interaction_type=InteractionType.route_evaluation,
                 conversation_id=conversation_id,
-                query=f"{origin_city} to {destination_city}",
+                query=f"[{direction_norm}] {origin_city} to {destination_city}",
                 route_id=result.recommended.get("balanced"),
-                metadata={"origin": origin_city, "destination": destination_city, "cargo_type": cargo_type}
+                metadata={
+                    "direction": direction_norm,
+                    "origin": origin_city,
+                    "destination": destination_city,
+                    "cargo_type": cargo_type,
+                },
             )
 
         # Return a concise human-readable summary for the LLM to use.
@@ -1312,8 +1358,10 @@ def evaluate_shipping_routes(
             return f"${n:,.0f}"
 
         lines = [
-            f"{len(result.routes)} routes found: {result.origin_city} → {result.destination_city}",
-            f"Cargo type: {result.cargo_type} | Value: {_fmt(result.cargo_value_usd)} | Duty rate: {result.duty_rate_pct}%",
+            f"{len(result.routes)} routes found [{result.direction}]: "
+            f"{result.origin_city} → {result.destination_city}",
+            f"Cargo type: {result.cargo_type} | Value: {_fmt(result.cargo_value_usd)} | "
+            f"Duty rate: {result.duty_rate_pct}%",
             "",
         ]
         for route in result.routes:
@@ -1331,7 +1379,10 @@ def evaluate_shipping_routes(
             f"Fastest={result.recommended['fastest']}  "
             f"Balanced={result.recommended['balanced']}",
         ]
-        logger.info("━━━ [ROUTE TOOL] Evaluated %d routes for %s→%s", len(result.routes), origin_city, destination_city)
+        logger.info(
+            "━━━ [ROUTE TOOL] Evaluated %d routes for [%s] %s→%s",
+            len(result.routes), direction_norm, origin_city, destination_city,
+        )
         return "\n".join(lines)
 
     except Exception:  # noqa: BLE001
@@ -1630,7 +1681,12 @@ You have access to five tools:
        import/export procedures, licensing, and trade scheme documentation.
 
   4. evaluate_shipping_routes  [Route Engine]
-     → Pakistan → USA shipping routes with full cost breakdown, transit times, carriers.
+     → Bidirectional shipping routes between Pakistan and the USA, with full
+       cost breakdown, transit times, and carriers. Pass direction="PK_TO_US"
+       for Pakistan→USA shipments (default) or direction="US_TO_PK" for
+       USA→Pakistan shipments. The duty side automatically swaps: PK_TO_US
+       applies US import duties + HMF/MPF; US_TO_PK applies Pakistani import
+       duties + withholding tax + Pakistani port fees.
      → Renders an interactive widget to the user automatically.
 
   5. web_search_trade  [Live Web — Anthropic web_search]
@@ -1666,10 +1722,17 @@ Answer DIRECTLY from your expertise (no tools) when:
 • "US only" query → call search_us_hs_data only.
 • Third-country query (EU / UK / China / India / etc.) → call web_search_trade.
 • Policy / SRO / regulation → call search_trade_documents (alongside Memgraph tools if rates also needed).
-• Shipping / freight / logistics → call evaluate_shipping_routes.
+• Shipping / freight / logistics → call evaluate_shipping_routes. Set the
+  direction argument explicitly:
+    — "from Pakistan to the US/USA" / "exporting to America"   → direction="PK_TO_US"
+    — "from the US/USA to Pakistan" / "importing into Pakistan" → direction="US_TO_PK"
+  origin_city and destination_city must match the chosen direction (PK city + US city
+  for PK_TO_US; US city + PK city for US_TO_PK). Never call this tool with mismatched
+  cities — it will reject the request.
 • Air vs sea comparison request where weight IS provided → call evaluate_shipping_routes
-  TWICE in sequence: first with cargo_type="AIR" and cargo_weight_kg set, then again with
-  cargo_type="FCL_20" (or FCL_40 for 2+ containers). Both calls must happen — show both widgets.
+  TWICE in sequence (in the same direction): first with cargo_type="AIR" and
+  cargo_weight_kg set, then again with cargo_type="FCL_20" (or FCL_40 for 2+ containers).
+  Both calls must happen — show both widgets.
 • Air vs sea comparison where weight is NOT provided → call for sea only, then ask for weight.
 • When the user mentions cargo weight in kg (e.g. "500 kg", "200 kg"), ALWAYS pass that
   value as cargo_weight_kg when calling evaluate_shipping_routes with cargo_type="AIR".
@@ -2039,7 +2102,7 @@ Tools:
   search_pakistan_hs_data  — Pakistan PCT: HS codes, tariffs, cess, exemptions, procedures, measures
   search_us_hs_data        — US HTS: HS codes, duty rates, US trade classifications
   search_trade_documents   — Trade policy documents, agreements, SROs, regulations, trade procedures
-  evaluate_shipping_routes — Shipping routes & freight costs from Pakistan to USA
+  evaluate_shipping_routes — Bidirectional shipping routes & freight costs between Pakistan and USA (PK_TO_US or US_TO_PK)
   web_search_trade         — Live web search for current/news/non-PK-non-US-country trade questions
 
 Follow this exact decision tree in order:
@@ -2193,6 +2256,9 @@ Examples (follow these exactly):
   "what is the DTRE scheme"                                         → ["search_trade_documents"]
   "show me shipping routes from karachi to new york"                → ["evaluate_shipping_routes"]
   "cheapest way to ship textiles from pakistan to usa"              → ["evaluate_shipping_routes", "search_pakistan_hs_data"]
+  "shipping routes from los angeles to karachi"                     → ["evaluate_shipping_routes"]
+  "cost to import machinery from chicago to lahore"                 → ["evaluate_shipping_routes", "search_pakistan_hs_data"]
+  "freight from new york to islamabad for electronics"              → ["evaluate_shipping_routes", "search_pakistan_hs_data"]
   "what are automotive products"                                    → ["search_pakistan_hs_data", "search_us_hs_data", "search_trade_documents"]
   "latest US tariff news on Pakistani textiles"                     → ["web_search_trade"]
   "any new anti-dumping cases against Pakistan this month"          → ["web_search_trade"]

@@ -1,5 +1,7 @@
 # CHANGELOG
  
++### v6.7.0 - 04/28/2026
++ Added Web Search Tool 
 +### v6.6.0 - 04/23/2026
 +
 +#### Added - TIPP Scraper API & S3 Integration

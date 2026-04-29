@@ -1623,11 +1623,27 @@ def get_active_prompt(name: str, default_content: str) -> str:
     return default_content
 
 
+def _get_chatbot_config_db() -> "ChatbotConfig | None":
+    """Read the chatbot config row from the DB. Returns None on any error."""
+    try:
+        from models.chatbot_config import ChatbotConfig as _CC
+        from sqlmodel import select as _select
+        with Session(engine) as s:
+            return s.exec(_select(_CC)).first()
+    except Exception as exc:
+        logger.warning("Could not read ChatbotConfig from DB: %s", exc)
+        return None
+
+
 def clear_agent_cache():
-    """Clear the compiled agent cache."""
-    global _agent_cache
+    """Clear the compiled agent cache and reset LLM/bot singletons so the
+    next request picks up any updated config (model, temperature, tools)."""
+    global _agent_cache, _llm, _router_llm, _bot
     _agent_cache = {}
-    logger.info("━━━ [AGENT CACHE] Cache cleared.")
+    _llm = None
+    _router_llm = None
+    _bot = None
+    logger.info("━━━ [AGENT CACHE] Cache cleared — LLM/bot singletons reset.")
 
 
 _BOT_SYSTEM_PROMPT_DEFAULT = """\
@@ -2064,13 +2080,23 @@ def _get_llm() -> ChatOpenAI:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise EnvironmentError("OPENAI_API_KEY must be set in .env")
+        cfg = _get_chatbot_config_db()
+        model       = (cfg.llm_model if cfg else None) or BOT_LLM_MODEL
+        temperature = cfg.temperature  if cfg else 0.1
+        max_tokens  = cfg.max_tokens   if cfg else 2048
+        top_p       = cfg.top_p        if cfg else 0.9
         _llm = ChatOpenAI(
-            model=BOT_LLM_MODEL,
+            model=model,
             openai_api_key=api_key,
-            temperature=0.1,   # low temperature for factual tariff data
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model_kwargs={"top_p": top_p},
             streaming=True,
         )
-        logger.info("LLM singleton initialised (%s, streaming=True)", BOT_LLM_MODEL)
+        logger.info(
+            "LLM singleton initialised (%s, temp=%.2f, max_tokens=%d, top_p=%.2f, streaming=True)",
+            model, temperature, max_tokens, top_p,
+        )
     return _llm
 
 
@@ -2281,25 +2307,33 @@ def _get_router_llm() -> ChatOpenAI:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise EnvironmentError("OPENAI_API_KEY must be set in .env")
+        cfg = _get_chatbot_config_db()
+        model = (cfg.llm_model if cfg else None) or BOT_LLM_MODEL
         _router_llm = ChatOpenAI(
-            model=BOT_LLM_MODEL,
+            model=model,
             openai_api_key=api_key,
-            temperature=0.0,   # deterministic routing
-            streaming=False,   # no streaming needed for routing
+            temperature=0.0,   # deterministic routing always
+            streaming=False,
         )
-        logger.info("Router LLM initialised (%s, streaming=False)", BOT_LLM_MODEL)
+        logger.info("Router LLM initialised (%s, streaming=False)", model)
     return _router_llm
 
 
 _router_llm: Optional[ChatOpenAI] = None
 
 
-def _route_query(query: str) -> list:
+def _route_query(query: str, tool_map: dict | None = None) -> list:
     """
     Call the router LLM with the query and return the list of tool objects
-    to bind for this request. Falls back to all tools on any error.
+    to bind for this request. Falls back to all enabled tools on any error.
+
+    tool_map — dict of {name: tool} to route among (defaults to _TOOL_MAP).
     """
     import json
+
+    if tool_map is None:
+        tool_map = _TOOL_MAP
+    all_tools_in_map = list(tool_map.values())
 
     try:
         router_llm = _get_router_llm()
@@ -2323,29 +2357,27 @@ def _route_query(query: str) -> list:
             logger.info("━━━ [ROUTER] No tools needed — LLM will answer directly.")
             return []
 
-        # Validate — keep only names that exist in the registry
-        valid   = [n for n in selected_names if n in _TOOL_MAP]
-        invalid = [n for n in selected_names if n not in _TOOL_MAP]
+        # Validate — keep only names that exist in the effective tool map
+        valid   = [n for n in selected_names if n in tool_map]
+        invalid = [n for n in selected_names if n not in tool_map]
 
         if invalid:
-            logger.warning("━━━ [ROUTER] Unknown tool name(s) ignored: %s", invalid)
+            logger.warning("━━━ [ROUTER] Unknown/disabled tool name(s) ignored: %s", invalid)
 
         if not valid:
-            logger.warning("━━━ [ROUTER] No valid tools selected — falling back to all tools.")
-            return _ALL_TOOLS
+            logger.warning("━━━ [ROUTER] No valid tools selected — falling back to all enabled tools.")
+            return all_tools_in_map
 
-        selected_tools = [_TOOL_MAP[n] for n in valid]
+        selected_tools = [tool_map[n] for n in valid]
 
-        logger.info(
-            "━━━ [ROUTER] Query: %r", query[:120]
-        )
+        logger.info("━━━ [ROUTER] Query: %r", query[:120])
         logger.info(
             "━━━ [ROUTER] Selected %d/%d tool(s): %s",
             len(selected_tools),
-            len(_ALL_TOOLS),
+            len(all_tools_in_map),
             [t.name for t in selected_tools],
         )
-        skipped = [n for n in _TOOL_MAP if n not in valid]
+        skipped = [n for n in tool_map if n not in valid]
         if skipped:
             logger.info("━━━ [ROUTER] Skipped (not needed): %s", skipped)
 
@@ -2444,8 +2476,17 @@ class _RouterAgent:
         cjk_token = _user_wrote_cjk.set(bool(query) and bool(_CJK_RE.search(query)))
 
         try:
+            # ── Read enabled tools from DB config ──────────────────────────────
+            cfg = _get_chatbot_config_db()
+            if cfg and cfg.available_tools:
+                allowed = {t.strip() for t in cfg.available_tools.split(",") if t.strip()}
+                effective_tool_map = {k: v for k, v in _TOOL_MAP.items() if k in allowed}
+                logger.info("━━━ [AGENT] Effective tools (from DB config): %s", list(effective_tool_map.keys()))
+            else:
+                effective_tool_map = _TOOL_MAP
+
             # ── Route ──────────────────────────────────────────────────────────
-            selected_tools = _route_query(query)
+            selected_tools = _route_query(query, effective_tool_map)
 
             # ── No tools needed — stream directly from LLM ─────────────────────
             if not selected_tools:

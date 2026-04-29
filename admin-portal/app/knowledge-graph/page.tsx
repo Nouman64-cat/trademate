@@ -16,7 +16,7 @@ import Link from 'next/link';
 interface HealthStatus {
   status: string;
   message: string;
-  connection_uri: string;
+  database: string;
 }
 
 interface GraphStats {
@@ -47,13 +47,23 @@ export default function KnowledgeGraphPage() {
       setLoading(true);
       setError(null);
 
-      const [healthData, statsData] = await Promise.all([
+      const [healthResult, statsResult] = await Promise.allSettled([
         api.get<HealthStatus>('/v1/admin/knowledge-graph/health'),
         api.get<GraphStats>('/v1/admin/knowledge-graph/stats'),
       ]);
 
-      setHealth(healthData);
-      setStats(statsData);
+      if (healthResult.status === 'fulfilled') {
+        setHealth(healthResult.value);
+      } else {
+        setHealth({ status: 'unavailable', message: 'Service unreachable', database: 'N/A' });
+      }
+
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+      } else {
+        console.error('Failed to fetch graph stats:', statsResult.reason);
+        setError('Failed to load knowledge graph data');
+      }
     } catch (err: any) {
       console.error('Failed to fetch knowledge graph data:', err);
       setError(err.message || 'Failed to load knowledge graph data');
@@ -140,7 +150,7 @@ export default function KnowledgeGraphPage() {
                 <Activity className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <span className="text-gray-600 dark:text-gray-400">URI:</span>
                 <span className="text-gray-900 dark:text-gray-100 font-mono">
-                  {health.connection_uri}
+                  {health.database}
                 </span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">

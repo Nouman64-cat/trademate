@@ -14,6 +14,7 @@ import {
   Workflow,
   GitBranch,
   Search,
+  Zap,
 } from 'lucide-react';
 import { NavItem } from '../types';
 
@@ -93,6 +94,11 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Analytics',
     href: '/analytics',
     icon: BarChart3,
+  },
+  {
+    title: 'Token Economy',
+    href: '/token-economy',
+    icon: Zap,
   },
   {
     title: 'TIPP Scraper',

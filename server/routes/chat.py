@@ -44,6 +44,50 @@ logger = logging.getLogger(__name__)
 router  = APIRouter(prefix="/v1", tags=["chat"])
 _bearer = HTTPBearer()
 
+# ── Token tracking ─────────────────────────────────────────────────────────────
+
+_MODEL_PRICING: dict[str, dict[str, float]] = {
+    "gpt-4o":          {"prompt": 5.00,  "completion": 15.00},
+    "gpt-4o-mini":     {"prompt": 0.15,  "completion": 0.60},
+    "gpt-4-turbo":     {"prompt": 10.00, "completion": 30.00},
+    "gpt-4":           {"prompt": 30.00, "completion": 60.00},
+    "gpt-3.5-turbo":   {"prompt": 0.50,  "completion": 1.50},
+    "gpt-5.4":         {"prompt": 10.00, "completion": 30.00},
+}
+
+_tokenizer_cache: dict = {}
+
+
+def _count_tokens(text: str, model: str) -> int:
+    try:
+        import tiktoken
+        if model not in _tokenizer_cache:
+            try:
+                _tokenizer_cache[model] = tiktoken.encoding_for_model(model)
+            except Exception:
+                _tokenizer_cache[model] = tiktoken.get_encoding("cl100k_base")
+        return len(_tokenizer_cache[model].encode(text))
+    except Exception:
+        return max(1, len(text) // 4)
+
+
+def _calc_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    pricing = _MODEL_PRICING.get(model, _MODEL_PRICING["gpt-4o"])
+    return (prompt_tokens * pricing["prompt"] + completion_tokens * pricing["completion"]) / 1_000_000
+
+
+def _get_active_model() -> str:
+    try:
+        from models.chatbot_config import ChatbotConfig
+        with Session(engine) as session:
+            cfg = session.exec(select(ChatbotConfig)).first()
+            if cfg and cfg.llm_model:
+                return cfg.llm_model
+    except Exception:
+        pass
+    from agent.bot import BOT_LLM_MODEL
+    return BOT_LLM_MODEL
+
 # Maximum number of previous turns loaded from DB as context
 _HISTORY_TURNS = 20
 
@@ -124,6 +168,10 @@ def _save_message(
     content: str,
     tools_used: list[str] | None = None,
     sources_hit: list[str] | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    model_name: str | None = None,
+    cost_usd: float | None = None,
 ) -> int:
     """Persist a single message to the DB and return its generated id."""
     msg = Message(
@@ -132,6 +180,10 @@ def _save_message(
         content=content,
         tools_used=json.dumps(tools_used) if tools_used else None,
         sources_hit=json.dumps(sources_hit) if sources_hit else None,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        model_name=model_name,
+        cost_usd=cost_usd,
     )
     session.add(msg)
 
@@ -260,6 +312,10 @@ async def _stream_agent(
         full_reply = "".join(reply_chunks)
         assistant_message_id: int | None = None
         if full_reply:
+            active_model = _get_active_model()
+            pt = _count_tokens(message, active_model)
+            ct = _count_tokens(full_reply, active_model)
+            cost = _calc_cost(active_model, pt, ct)
             with Session(engine) as session:
                 assistant_message_id = _save_message(
                     session,
@@ -268,6 +324,10 @@ async def _stream_agent(
                     full_reply,
                     tools_used=tools_called or None,
                     sources_hit=tools_called or None,
+                    prompt_tokens=pt,
+                    completion_tokens=ct,
+                    model_name=active_model,
+                    cost_usd=cost,
                 )
 
         if tools_called:

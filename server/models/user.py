@@ -49,6 +49,9 @@ class User(SQLModel, table=True):
     is_onboarded: bool = Field(default=False)
     is_verified: bool = Field(default=False)
     is_admin: bool = Field(default=False)
+    last_login: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    failed_login_attempts: int = Field(default=0)
+    locked_until: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow),

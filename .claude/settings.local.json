@@ -33,7 +33,11 @@
       "Bash(server/.venv/bin/python3:*)",
       "Bash(npm install:*)",
       "Bash(grep -rhE \"fetch\\\\\\(\\\\`[^\\\\`]+/v1/admin[^\\\\`]*\" /home/nouman-ejaz/projects/trademate/admin-portal/app/ --include=\"*.tsx\" --include=\"*.ts\")",
-      "Bash(grep -oE \"/v1/admin[^\\\\`]*\")"
+      "Bash(grep -oE \"/v1/admin[^\\\\`]*\")",
+      "Bash(npm run *)",
+      "Bash(echo \"Dev server PID: $!\")",
+      "Bash(curl -s http://localhost:3001/)",
+      "Bash(.venv/bin/python -c ' *)"
     ]
   }
 }

@@ -20,6 +20,10 @@ def create_db_tables():
     import models.model_metadata  # noqa: F401
     import models.ab_test  # noqa: F401
     import models.freightos_rate  # noqa: F401
+    import models.system_settings  # noqa: F401
+    import models.security_settings  # noqa: F401
+    import models.chatbot_prompt  # noqa: F401
+    import models.chatbot_config  # noqa: F401
     SQLModel.metadata.create_all(engine)
     
     # Run manual migrations for schema changes not handled by create_all

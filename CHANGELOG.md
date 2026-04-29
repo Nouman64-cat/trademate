@@ -1,4 +1,49 @@
 # CHANGELOG
+ 
+### v6.7.1 -04/28/2026
+
+#### Updated
+ - Changed System Instructions and cypher query generation mechanism to extract the correct HS code related information.
+
+### v6.7.0 - 04/28/2026
++ Added Web Search Tool 
++ US to Pak Route Added 
++### v6.6.0 - 04/23/2026
+
++#### Added - TIPP Scraper API & S3 Integration
++
++- **FastAPI Scraper Server** (`tipp_scrapping/main.py`):
++  - New standalone API server for the TIPP scraping module (port 8003).
++  - Background task management for triggering Full, Product, and Detail scrapes.
++  - Real-time statistics endpoint providing row counts for all scraped data.
++  - Task status monitoring and live log streaming.
++
++- **AWS S3 Persistence Layer** (`tipp_scrapping/s3_utils.py`):
++  - Full integration with `data-trademate` S3 bucket.
++  - **Bidirectional Synchronization**: Automatically downloads checkpoints from S3 at startup to resume progress and uploads results back to the cloud.
++  - Periodic S3 syncing during long-running scraping tasks (every 50-100 items).
++  - Automated final sync of all CSVs, logs, and master files upon task completion.
++
++- **Infrastructure & Reliability**:
++  - Added `boto3`, `beautifulsoup4`, `lxml`, and `requests` to the scraping environment.
++  - Configured `.env.example` for cloud-ready deployments.
++  - Verified and fixed `.venv` dependency chain.
++
++#### Added - Admin Portal Enhancements
++
++- **Security Settings Page** (`/settings/security`):
++  - New interface for managing platform authentication policies.
++  - Configuration for password complexity (min length, symbols, numbers).
++  - Global 2FA enforcement and session timeout management.
++  - Brute force protection with configurable login attempt limits.
++  - Backend implementation with `SecuritySettings` SQLModel and admin API endpoints.
++
++#### Fixed - UI/UX Improvements
++
++- **Sidebar Dropdown Persistence**: Resolved an issue where sidebar sections would collapse during navigation. The sidebar now automatically detects and expands the parent section of the active route.
++- **UI Alignment**: Centralized the layout for General and Security settings pages to maintain design consistency across the portal.
++- **Import Errors**: Fixed multiple `ModuleNotFoundError` issues in the main server by correcting absolute `server.` imports to relative paths.
++
 
 ### v6.8.0 - 04/28/2026
 #### Added 

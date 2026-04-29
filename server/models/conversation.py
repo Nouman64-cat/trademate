@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Index, Integer, Text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -75,6 +75,11 @@ class Message(SQLModel, table=True):
     # User-submitted 1–5 star rating for assistant messages (null = unrated).
     # Only assistant messages are rated; a CHECK constraint enforces the range.
     rating: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
+
+    prompt_tokens: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
+    completion_tokens: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
+    model_name: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    cost_usd: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
 
     created_at: datetime = Field(
         default_factory=datetime.utcnow,

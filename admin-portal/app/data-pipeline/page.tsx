@@ -42,13 +42,23 @@ export default function DataPipelinePage() {
       setLoading(true);
       setError(null);
 
-      const [healthData, statsData] = await Promise.all([
+      const [healthResult, statsResult] = await Promise.allSettled([
         api.get<HealthStatus>('/v1/admin/data-pipeline/health'),
         api.get<PipelineStats>('/v1/admin/data-pipeline/stats'),
       ]);
 
-      setHealth(healthData);
-      setStats(statsData);
+      if (healthResult.status === 'fulfilled') {
+        setHealth(healthResult.value);
+      } else {
+        setHealth({ status: 'unavailable', services: {} });
+      }
+
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+      } else {
+        console.error('Failed to fetch pipeline stats:', statsResult.reason);
+        setError('Failed to load pipeline stats');
+      }
     } catch (err: any) {
       console.error('Failed to fetch pipeline data:', err);
       setError(err.message || 'Failed to load pipeline data');

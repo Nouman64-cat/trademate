@@ -1,11 +1,5 @@
 'use client';
 
-/**
- * Chatbot Tools Page
- *
- * Manage available tools and their configurations for the chatbot agent
- */
-
 import * as React from 'react';
 import { DashboardLayout } from '../../components/dashboard-layout';
 import {
@@ -26,6 +20,8 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import api from '../../services/api';
+import type { ChatbotSettings } from '../../types';
 
 interface Tool {
   id: string;
@@ -42,243 +38,133 @@ interface Tool {
     default?: any;
   }[];
   apiEndpoint?: string;
-  performance?: {
-    avgResponseTime: number;
-    successRate: number;
-    usageCount: number;
-  };
 }
 
-export default function ChatbotToolsPage() {
-  const [tools, setTools] = React.useState<Tool[]>([
-    {
-      id: 'search_pakistan_hs_data',
-      name: 'Search Pakistan HS Data',
-      description: 'Search and retrieve HS codes, tariffs, and trade data from Pakistan Customs',
-      category: 'search',
-      enabled: true,
-      icon: Database,
-      apiEndpoint: 'Memgraph Vector Search',
-      parameters: [
-        {
-          name: 'query',
-          type: 'string',
-          required: true,
-          description: 'Natural language search query',
-        },
-        {
-          name: 'top_k',
-          type: 'integer',
-          required: false,
-          description: 'Number of results to return',
-          default: 5,
-        },
-      ],
-      performance: {
-        avgResponseTime: 1250,
-        successRate: 98.5,
-        usageCount: 15420,
-      },
-    },
-    {
-      id: 'search_us_hs_data',
-      name: 'Search US HS Data',
-      description: 'Search and retrieve HS codes and tariff data from US Customs',
-      category: 'search',
-      enabled: true,
-      icon: Globe,
-      apiEndpoint: 'Memgraph Vector Search',
-      parameters: [
-        {
-          name: 'query',
-          type: 'string',
-          required: true,
-          description: 'Natural language search query',
-        },
-        {
-          name: 'top_k',
-          type: 'integer',
-          required: false,
-          description: 'Number of results to return',
-          default: 5,
-        },
-      ],
-      performance: {
-        avgResponseTime: 1180,
-        successRate: 97.8,
-        usageCount: 8930,
-      },
-    },
-    {
-      id: 'search_trade_documents',
-      name: 'Search Trade Documents',
-      description: 'Semantic search across uploaded trade documents, policies, and regulations',
-      category: 'search',
-      enabled: true,
-      icon: FileText,
-      apiEndpoint: 'Pinecone Vector DB',
-      parameters: [
-        {
-          name: 'query',
-          type: 'string',
-          required: true,
-          description: 'Search query',
-        },
-        {
-          name: 'top_k',
-          type: 'integer',
-          required: false,
-          description: 'Number of documents to return',
-          default: 3,
-        },
-      ],
-      performance: {
-        avgResponseTime: 850,
-        successRate: 99.2,
-        usageCount: 12560,
-      },
-    },
-    {
-      id: 'evaluate_shipping_routes',
-      name: 'Evaluate Shipping Routes',
-      description: 'Compare and analyze shipping routes with cost and time estimates',
-      category: 'analysis',
-      enabled: true,
-      icon: Navigation,
-      apiEndpoint: 'Route Engine API',
-      parameters: [
-        {
-          name: 'origin_city',
-          type: 'string',
-          required: true,
-          description: 'Origin city name',
-        },
-        {
-          name: 'destination_city',
-          type: 'string',
-          required: true,
-          description: 'Destination city name',
-        },
-        {
-          name: 'cargo_type',
-          type: 'string',
-          required: true,
-          description: 'Type of cargo',
-        },
-        {
-          name: 'cargo_value_usd',
-          type: 'number',
-          required: false,
-          description: 'Value of cargo in USD',
-        },
-      ],
-      performance: {
-        avgResponseTime: 2100,
-        successRate: 96.3,
-        usageCount: 5240,
-      },
-    },
-    {
-      id: 'recommend_hs_codes',
-      name: 'Recommend HS Codes',
-      description: 'ML-powered recommendations for related HS codes based on user context',
-      category: 'recommendation',
-      enabled: true,
-      icon: Lightbulb,
-      apiEndpoint: 'Recommendation Service',
-      parameters: [
-        {
-          name: 'context_codes',
-          type: 'array',
-          required: true,
-          description: 'Recently searched HS codes',
-        },
-        {
-          name: 'top_k',
-          type: 'integer',
-          required: false,
-          description: 'Number of recommendations',
-          default: 10,
-        },
-      ],
-      performance: {
-        avgResponseTime: 450,
-        successRate: 94.7,
-        usageCount: 3820,
-      },
-    },
-    {
-      id: 'recommend_documents',
-      name: 'Recommend Documents',
-      description: 'Context-aware document recommendations based on conversation history',
-      category: 'recommendation',
-      enabled: true,
-      icon: FileText,
-      apiEndpoint: 'Recommendation Service',
-      parameters: [
-        {
-          name: 'conversation_context',
-          type: 'array',
-          required: true,
-          description: 'Recent messages',
-        },
-        {
-          name: 'top_k',
-          type: 'integer',
-          required: false,
-          description: 'Number of recommendations',
-          default: 3,
-        },
-      ],
-      performance: {
-        avgResponseTime: 680,
-        successRate: 91.2,
-        usageCount: 2140,
-      },
-    },
-    {
-      id: 'optimize_tariff',
-      name: 'Tariff Optimization',
-      description: 'Find alternative HS classifications with lower duty rates',
-      category: 'analysis',
-      enabled: true,
-      icon: Search,
-      apiEndpoint: 'Tariff Optimizer',
-      parameters: [
-        {
-          name: 'hs_code',
-          type: 'string',
-          required: true,
-          description: 'Current HS code',
-        },
-        {
-          name: 'cargo_value_usd',
-          type: 'number',
-          required: true,
-          description: 'Cargo value for savings calculation',
-        },
-        {
-          name: 'source',
-          type: 'string',
-          required: false,
-          description: 'PK or US',
-          default: 'PK',
-        },
-      ],
-      performance: {
-        avgResponseTime: 920,
-        successRate: 89.5,
-        usageCount: 1680,
-      },
-    },
-  ]);
+const TOOL_DEFINITIONS: Omit<Tool, 'enabled'>[] = [
+  {
+    id: 'search_pakistan_hs_data',
+    name: 'Search Pakistan HS Data',
+    description: 'Search and retrieve HS codes, tariffs, and trade data from Pakistan Customs',
+    category: 'search',
+    icon: Database,
+    apiEndpoint: 'Memgraph Vector Search',
+    parameters: [
+      { name: 'query', type: 'string', required: true, description: 'Natural language search query' },
+      { name: 'top_k', type: 'integer', required: false, description: 'Number of results to return', default: 5 },
+    ],
+  },
+  {
+    id: 'search_us_hs_data',
+    name: 'Search US HS Data',
+    description: 'Search and retrieve HS codes and tariff data from US Customs',
+    category: 'search',
+    icon: Globe,
+    apiEndpoint: 'Memgraph Vector Search',
+    parameters: [
+      { name: 'query', type: 'string', required: true, description: 'Natural language search query' },
+      { name: 'top_k', type: 'integer', required: false, description: 'Number of results to return', default: 5 },
+    ],
+  },
+  {
+    id: 'search_trade_documents',
+    name: 'Search Trade Documents',
+    description: 'Semantic search across uploaded trade documents, policies, and regulations',
+    category: 'search',
+    icon: FileText,
+    apiEndpoint: 'Pinecone Vector DB',
+    parameters: [
+      { name: 'query', type: 'string', required: true, description: 'Search query' },
+      { name: 'top_k', type: 'integer', required: false, description: 'Number of documents to return', default: 3 },
+    ],
+  },
+  {
+    id: 'evaluate_shipping_routes',
+    name: 'Evaluate Shipping Routes',
+    description: 'Compare and analyze shipping routes with cost and time estimates',
+    category: 'analysis',
+    icon: Navigation,
+    apiEndpoint: 'Route Engine API',
+    parameters: [
+      { name: 'origin_city', type: 'string', required: true, description: 'Origin city name' },
+      { name: 'destination_city', type: 'string', required: true, description: 'Destination city name' },
+      { name: 'cargo_type', type: 'string', required: true, description: 'Type of cargo' },
+      { name: 'cargo_value_usd', type: 'number', required: false, description: 'Value of cargo in USD' },
+    ],
+  },
+  {
+    id: 'recommend_hs_codes',
+    name: 'Recommend HS Codes',
+    description: 'ML-powered recommendations for related HS codes based on user context',
+    category: 'recommendation',
+    icon: Lightbulb,
+    apiEndpoint: 'Recommendation Service',
+    parameters: [
+      { name: 'context_codes', type: 'array', required: true, description: 'Recently searched HS codes' },
+      { name: 'top_k', type: 'integer', required: false, description: 'Number of recommendations', default: 10 },
+    ],
+  },
+  {
+    id: 'recommend_documents',
+    name: 'Recommend Documents',
+    description: 'Context-aware document recommendations based on conversation history',
+    category: 'recommendation',
+    icon: FileText,
+    apiEndpoint: 'Recommendation Service',
+    parameters: [
+      { name: 'conversation_context', type: 'array', required: true, description: 'Recent messages' },
+      { name: 'top_k', type: 'integer', required: false, description: 'Number of recommendations', default: 3 },
+    ],
+  },
+  {
+    id: 'optimize_tariff',
+    name: 'Tariff Optimization',
+    description: 'Find alternative HS classifications with lower duty rates',
+    category: 'analysis',
+    icon: Search,
+    apiEndpoint: 'Tariff Optimizer',
+    parameters: [
+      { name: 'hs_code', type: 'string', required: true, description: 'Current HS code' },
+      { name: 'cargo_value_usd', type: 'number', required: true, description: 'Cargo value for savings calculation' },
+      { name: 'source', type: 'string', required: false, description: 'PK or US', default: 'PK' },
+    ],
+  },
+];
 
+export default function ChatbotToolsPage() {
+  const [tools, setTools] = React.useState<Tool[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [expandedTools, setExpandedTools] = React.useState<Set<string>>(new Set());
   const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [filter, setFilter] = React.useState<'all' | 'search' | 'analysis' | 'recommendation' | 'data'>('all');
 
+  React.useEffect(() => {
+    fetchToolsConfig();
+  }, []);
+
+  const fetchToolsConfig = async () => {
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const config = await api.get<ChatbotSettings>('/v1/admin/chatbot/config');
+      const enabledSet = new Set(config.available_tools);
+      setTools(
+        TOOL_DEFINITIONS.map((def) => ({
+          ...def,
+          enabled: enabledSet.has(def.id),
+        }))
+      );
+    } catch (err: any) {
+      setLoadError(err.message || 'Failed to load tool configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleTool = (toolId: string) => {
-    setTools(tools.map(tool =>
+    setTools(tools.map((tool) =>
       tool.id === toolId ? { ...tool, enabled: !tool.enabled } : tool
     ));
   };
@@ -295,26 +181,63 @@ export default function ChatbotToolsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    // TODO: Save to API
-    setTimeout(() => {
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      const enabledToolIds = tools.filter((t) => t.enabled).map((t) => t.id);
+      await api.put('/v1/admin/chatbot/config', { available_tools: enabledToolIds });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save tool configuration');
+    } finally {
       setSaving(false);
-      alert('Tool configuration saved successfully!');
-    }, 1000);
-  };
-
-  const handleReset = () => {
-    if (confirm('Reset all tools to default configuration?')) {
-      window.location.reload();
     }
   };
 
-  const filteredTools = filter === 'all'
-    ? tools
-    : tools.filter(tool => tool.category === filter);
+  const handleReset = async () => {
+    if (confirm('Reset tools to current saved configuration?')) {
+      await fetchToolsConfig();
+    }
+  };
 
-  const enabledCount = tools.filter(t => t.enabled).length;
-  const totalUsage = tools.reduce((sum, t) => sum + (t.performance?.usageCount || 0), 0);
-  const avgSuccessRate = tools.reduce((sum, t) => sum + (t.performance?.successRate || 0), 0) / tools.length;
+  const filteredTools = filter === 'all' ? tools : tools.filter((tool) => tool.category === filter);
+  const enabledCount = tools.filter((t) => t.enabled).length;
+
+  if (loading) {
+    return (
+      <DashboardLayout
+        breadcrumbs={[
+          { title: 'Dashboard', href: '/dashboard' },
+          { title: 'Chatbot', href: '/chatbot' },
+          { title: 'Tools' },
+        ]}
+      >
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <DashboardLayout
+        breadcrumbs={[
+          { title: 'Dashboard', href: '/dashboard' },
+          { title: 'Chatbot', href: '/chatbot' },
+          { title: 'Tools' },
+        ]}
+      >
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200">Error: {loadError}</p>
+          <button onClick={fetchToolsConfig} className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline">
+            Try again
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout
@@ -328,9 +251,7 @@ export default function ChatbotToolsPage() {
         {/* Page Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Chatbot Tools
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Chatbot Tools</h1>
             <p className="mt-2 text-gray-600 dark:text-gray-400">
               Manage available tools and configurations for the AI agent
             </p>
@@ -348,18 +269,26 @@ export default function ChatbotToolsPage() {
               disabled={saving}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
 
+        {/* Save Feedback */}
+        {saveError && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-800 dark:text-red-200 text-sm">{saveError}</p>
+          </div>
+        )}
+        {saveSuccess && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p className="text-green-800 dark:text-green-200 text-sm">Tool configuration saved successfully!</p>
+          </div>
+        )}
+
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
@@ -386,28 +315,12 @@ export default function ChatbotToolsPage() {
 
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <Code className="h-5 w-5 text-purple-600" />
+              <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
+                <XCircle className="h-5 w-5 text-red-500" />
               </div>
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Calls</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {totalUsage.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Success Rate</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {avgSuccessRate.toFixed(1)}%
-                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Disabled</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{tools.length - enabledCount}</p>
               </div>
             </div>
           </div>
@@ -445,72 +358,48 @@ export default function ChatbotToolsPage() {
                 key={tool.id}
                 className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
-                {/* Tool Header */}
                 <div className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4 flex-1">
-                      <div className={cn(
-                        'p-3 rounded-lg',
-                        tool.category === 'search' && 'bg-blue-100 dark:bg-blue-900/20',
-                        tool.category === 'analysis' && 'bg-purple-100 dark:bg-purple-900/20',
-                        tool.category === 'recommendation' && 'bg-green-100 dark:bg-green-900/20',
-                        tool.category === 'data' && 'bg-orange-100 dark:bg-orange-900/20'
-                      )}>
-                        <Icon className={cn(
-                          'h-6 w-6',
-                          tool.category === 'search' && 'text-blue-600',
-                          tool.category === 'analysis' && 'text-purple-600',
-                          tool.category === 'recommendation' && 'text-green-600',
-                          tool.category === 'data' && 'text-orange-600'
-                        )} />
+                      <div
+                        className={cn(
+                          'p-3 rounded-lg',
+                          tool.category === 'search' && 'bg-blue-100 dark:bg-blue-900/20',
+                          tool.category === 'analysis' && 'bg-purple-100 dark:bg-purple-900/20',
+                          tool.category === 'recommendation' && 'bg-green-100 dark:bg-green-900/20',
+                          tool.category === 'data' && 'bg-orange-100 dark:bg-orange-900/20'
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            'h-6 w-6',
+                            tool.category === 'search' && 'text-blue-600',
+                            tool.category === 'analysis' && 'text-purple-600',
+                            tool.category === 'recommendation' && 'text-green-600',
+                            tool.category === 'data' && 'text-orange-600'
+                          )}
+                        />
                       </div>
 
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            {tool.name}
-                          </h3>
-                          <span className={cn(
-                            'px-2 py-0.5 text-xs font-medium rounded-full',
-                            tool.category === 'search' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                            tool.category === 'analysis' && 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-                            tool.category === 'recommendation' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-                            tool.category === 'data' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                          )}>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{tool.name}</h3>
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 text-xs font-medium rounded-full',
+                              tool.category === 'search' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                              tool.category === 'analysis' && 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                              tool.category === 'recommendation' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                              tool.category === 'data' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                            )}
+                          >
                             {tool.category}
                           </span>
                         </div>
-                        <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
-                          {tool.description}
-                        </p>
-
-                        {/* Performance Metrics */}
-                        {tool.performance && (
-                          <div className="flex items-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500 dark:text-gray-400">Response Time:</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {tool.performance.avgResponseTime}ms
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500 dark:text-gray-400">Success Rate:</span>
-                              <span className="font-medium text-green-600 dark:text-green-400">
-                                {tool.performance.successRate}%
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500 dark:text-gray-400">Usage:</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {tool.performance.usageCount.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">{tool.description}</p>
                       </div>
                     </div>
 
-                    {/* Toggle and Expand */}
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => toggleExpanded(tool.id)}
@@ -536,15 +425,11 @@ export default function ChatbotToolsPage() {
                   </div>
                 </div>
 
-                {/* Expanded Details */}
                 {isExpanded && (
                   <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Parameters */}
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                          Parameters
-                        </h4>
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Parameters</h4>
                         {tool.parameters && tool.parameters.length > 0 ? (
                           <div className="space-y-2">
                             {tool.parameters.map((param, idx) => (
@@ -553,21 +438,13 @@ export default function ChatbotToolsPage() {
                                 className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700"
                               >
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-mono text-sm text-blue-600 dark:text-blue-400">
-                                    {param.name}
-                                  </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {param.type}
-                                  </span>
+                                  <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{param.name}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">{param.type}</span>
                                   {param.required && (
-                                    <span className="text-xs text-red-600 dark:text-red-400">
-                                      required
-                                    </span>
+                                    <span className="text-xs text-red-600 dark:text-red-400">required</span>
                                   )}
                                 </div>
-                                <p className="text-xs text-gray-600 dark:text-gray-400">
-                                  {param.description}
-                                </p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">{param.description}</p>
                                 {param.default !== undefined && (
                                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                     Default: {JSON.stringify(param.default)}
@@ -577,54 +454,37 @@ export default function ChatbotToolsPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            No parameters configured
-                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">No parameters configured</p>
                         )}
                       </div>
 
-                      {/* Configuration */}
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                          Configuration
-                        </h4>
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Configuration</h4>
                         <div className="space-y-2">
                           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                              API Endpoint
-                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">API Endpoint</div>
                             <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
                               {tool.apiEndpoint || 'Not configured'}
                             </div>
                           </div>
 
                           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                              Tool ID
-                            </div>
-                            <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
-                              {tool.id}
-                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Tool ID</div>
+                            <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{tool.id}</div>
                           </div>
 
                           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                              Status
-                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</div>
                             <div className="flex items-center gap-2">
                               {tool.enabled ? (
                                 <>
                                   <CheckCircle className="h-4 w-4 text-green-600" />
-                                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-                                    Enabled
-                                  </span>
+                                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Enabled</span>
                                 </>
                               ) : (
                                 <>
                                   <XCircle className="h-4 w-4 text-red-600" />
-                                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                                    Disabled
-                                  </span>
+                                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">Disabled</span>
                                 </>
                               )}
                             </div>
@@ -641,10 +501,8 @@ export default function ChatbotToolsPage() {
 
         {filteredTools.length === 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">
-              No tools found in this category
-            </p>
+            <Code className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">No tools found in this category</p>
           </div>
         )}
       </div>

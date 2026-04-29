@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 
 from database.database import get_session
 from models.otp import OtpCode
+from models.security_settings import SecuritySettings
 from models.user import User
 from schemas.user import (
     ForgotPasswordRequest,
@@ -38,6 +39,33 @@ from services.email import send_otp_email
 
 logger = logging.getLogger(__name__)
 
+# ── Helpers ─────────────────────────────────────────────────────────────────────
+
+_LOCKOUT_DURATION_MINUTES = 15
+_SPECIAL_CHARS = set('!@#$%^&*()_+-=[]{}|;:\'",.<>?/\\`~')
+
+
+def _get_security_settings(session: Session) -> SecuritySettings:
+    settings = session.exec(select(SecuritySettings)).first()
+    if not settings:
+        settings = SecuritySettings()
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    return settings
+
+
+def _validate_password(password: str, settings: SecuritySettings) -> list[str]:
+    errors = []
+    if len(password) < settings.min_password_length:
+        errors.append(f"Password must be at least {settings.min_password_length} characters long.")
+    if settings.require_numbers and not any(c.isdigit() for c in password):
+        errors.append("Password must contain at least one number.")
+    if settings.require_special_characters and not any(c in _SPECIAL_CHARS for c in password):
+        errors.append("Password must contain at least one special character.")
+    return errors
+
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 _OTP_EXPIRES_MINUTES = 10
 _OTP_MAX_ATTEMPTS    = 3
@@ -59,6 +87,11 @@ def _get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(_be
 @limiter.limit("5/hour")
 def register(request: Request, body: RegisterRequest, session: Session = Depends(get_session)):
     email = body.email.lower().strip()
+
+    sec = _get_security_settings(session)
+    pw_errors = _validate_password(body.password, sec)
+    if pw_errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=" ".join(pw_errors))
 
     existing = session.exec(select(User).where(User.email_address == email)).first()
     if existing and existing.is_verified:
@@ -105,9 +138,30 @@ def register(request: Request, body: RegisterRequest, session: Session = Depends
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
 def login(request: Request, body: LoginRequest, session: Session = Depends(get_session)):
+    sec = _get_security_settings(session)
+    now = datetime.utcnow()
+
     user = session.exec(select(User).where(User.email_address == body.email.lower().strip())).first()
 
+    # Check account lockout before verifying password (prevents timing attacks leaking user existence)
+    if user and user.locked_until and user.locked_until > now:
+        remaining = max(1, int((user.locked_until - now).total_seconds() / 60) + 1)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Account locked after too many failed attempts. Try again in {remaining} minute(s).",
+        )
+
     if not user or not verify_password(body.password, user.password_hash):
+        if user:
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= sec.max_login_attempts:
+                user.locked_until = now + timedelta(minutes=_LOCKOUT_DURATION_MINUTES)
+                logger.warning(
+                    "[AUTH] Account %s locked after %d failed login attempts",
+                    user.email_address, user.failed_login_attempts,
+                )
+            session.add(user)
+            session.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not user.is_verified:
@@ -119,13 +173,25 @@ def login(request: Request, body: LoginRequest, session: Session = Depends(get_s
     if user.status == "suspended":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
 
-    token = create_access_token({
-        "sub": str(user.id),
-        "id": user.id,
-        "is_onboarded": user.is_onboarded,
-        "status": user.status,
-    })
+    # Successful login — reset counters and record timestamp
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login = now
+    session.add(user)
+    session.commit()
 
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "id": user.id,
+            "is_onboarded": user.is_onboarded,
+            "status": user.status,
+            "is_admin": user.is_admin,
+        },
+        expire_minutes=sec.jwt_access_token_expire_minutes,
+    )
+
+    logger.info("[AUTH] User %s logged in successfully.", user.email_address)
     return LoginResponse(access_token=token)
 
 
@@ -416,6 +482,11 @@ def reset_password(
     the forgot-password flow.
     """
     email = decode_reset_token(body.reset_token)   # raises HTTP 400 on invalid/expired
+
+    sec = _get_security_settings(session)
+    pw_errors = _validate_password(body.new_password, sec)
+    if pw_errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=" ".join(pw_errors))
 
     user = session.exec(select(User).where(User.email_address == email)).first()
     if not user:

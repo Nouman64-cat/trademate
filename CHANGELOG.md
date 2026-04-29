@@ -1,5 +1,10 @@
 # CHANGELOG
- 
+
+### v6.8.0 -04/28/2026
+
+#### Updated
+- Made changes in the admin portal so that all the harcoded features now work. Also added a module in admin portal named token economy.
+
 ### v6.7.1 -04/28/2026
 
 #### Updated

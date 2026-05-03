@@ -8,7 +8,7 @@ export default function AnimatedCursor() {
   const [position, setPosition] = useState({ x: -100, y: -100 });
   const [trailingPosition, setTrailingPosition] = useState({ x: -100, y: -100 });
   const [vehicle, setVehicle] = useState<VehicleType>("truck");
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const vehicles: VehicleType[] = ["truck", "plane", "ship"];

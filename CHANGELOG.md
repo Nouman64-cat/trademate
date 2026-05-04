@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### v8.2.2 5/4/2026
+
+#### Updated
+- Changed the Tipp scrapping micro service to handle scientifc notation values so no data will be now get corrupted in future.
+
 ### v8.2.1 5/1/2026
 
 #### Updated

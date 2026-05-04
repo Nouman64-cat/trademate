@@ -37,7 +37,25 @@
       "Bash(npm run *)",
       "Bash(echo \"Dev server PID: $!\")",
       "Bash(curl -s http://localhost:3001/)",
-      "Bash(.venv/bin/python -c ' *)"
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(sudo -S bash -c \"docker restart trademate-server-1\")",
+      "Bash(sudo docker *)",
+      "Bash(.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8003)",
+      "Bash(curl -s http://localhost:8003/)",
+      "Bash(curl -s -X POST http://localhost:8003/tasks/full-pipeline)",
+      "Bash(curl -s http://localhost:8003/tasks)",
+      "Bash(curl -s http://localhost:8003/logs?lines=20)",
+      "Bash(curl -v --proxy \"http://wlukdecd:e2u6bssg5n7i@82.22.209.50:5880\" https://httpbin.org/ip)",
+      "Bash(curl -s --proxy \"http://wlukdecd:e2u6bssg5n7i@82.22.209.50:5880\" https://httpbin.org/ip)",
+      "Bash(docker compose *)",
+      "Bash(docker info *)",
+      "Bash(curl -v --proxy \"http://fmnakanp:d0gt52m0eosu@31.58.29.91:6057\" https://httpbin.org/ip)",
+      "Bash(curl -s http://localhost:8003/logs?lines=15)",
+      "Bash(curl -s http://localhost:8003/stats)",
+      "Bash(curl -s \"http://localhost:8003/logs?lines=10\")",
+      "Bash(curl -s \"http://localhost:8003/logs?lines=20\")",
+      "Bash(curl -s \"http://localhost:8003/logs?lines=5\")",
+      "Bash(curl -s \"http://localhost:8003/logs?lines=3\")"
     ]
   }
 }

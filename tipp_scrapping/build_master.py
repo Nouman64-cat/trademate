@@ -78,7 +78,7 @@ with open(os.path.join(OUT_DIR, "cess_collection.csv"), newline="", encoding="ut
 print("Loading exemptions...")
 exemptions = defaultdict(list)
 
-with open(os.path.join(OUT_DIR, "exemptions_concessions.csv"), newline="", encoding="utf-8") as f:
+with open(os.path.join(OUT_DIR, "exemption_concessions.csv"), newline="", encoding="utf-8") as f:
     for row in csv.DictReader(f):
         hs = row["HS Code"]
         hs_meta[hs] = row["Description"]
@@ -106,7 +106,7 @@ with open(os.path.join(OUT_DIR, "anti_dump_tariffs.csv"), newline="", encoding="
 print("Loading NTM measures...")
 measures = defaultdict(list)
 
-with open(os.path.join(OUT_DIR, "ntm_measures.csv"), newline="", encoding="utf-8") as f:
+with open(os.path.join(OUT_DIR, "measures.csv"), newline="", encoding="utf-8") as f:
     for row in csv.DictReader(f):
         hs = row["HS Code"]
         hs_meta[hs] = row["Description"]

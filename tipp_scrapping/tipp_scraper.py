@@ -42,12 +42,13 @@ from config import (
 # Output files
 OUT_DIR            = DATA_DIR
 FILE_MASTER        = os.path.join(OUT_DIR, "hs_codes_master.csv")
+FILE_HIERARCHY     = os.path.join(OUT_DIR, "pct codes with hierarchy.csv")
 FILE_TARIFFS       = os.path.join(OUT_DIR, "tariffs.csv")
 FILE_CESS          = os.path.join(OUT_DIR, "cess_collection.csv")
-FILE_EXEMPTIONS    = os.path.join(OUT_DIR, "exemptions_concessions.csv")
+FILE_EXEMPTIONS    = os.path.join(OUT_DIR, "exemption_concessions.csv")
 FILE_ANTIDUMP      = os.path.join(OUT_DIR, "anti_dump_tariffs.csv")
-FILE_MEASURES          = os.path.join(OUT_DIR, "ntm_measures.csv")
-FILE_PROCEDURES        = os.path.join(OUT_DIR, "procedures.csv")
+FILE_MEASURES      = os.path.join(OUT_DIR, "measures.csv")
+FILE_PROCEDURES    = os.path.join(OUT_DIR, "procedures.csv")
 FILE_CHECKPOINT        = os.path.join(OUT_DIR, "checkpoint.txt")
 FILE_NTM_CHECKPOINT    = os.path.join(OUT_DIR, "ntm_checkpoint.txt")
 FILE_FAILED            = os.path.join(OUT_DIR, "failed.csv")
@@ -108,7 +109,9 @@ def append_rows(filepath, rows):
     with open(filepath, "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         for row in rows:
-            w.writerow(row)
+            # Force first column (always HS Code) to string to prevent scientific notation
+            safe_row = [str(row[0])] + list(row[1:]) if row else row
+            w.writerow(safe_row)
 
 def load_checkpoint(filepath):
     if os.path.exists(filepath):
@@ -136,6 +139,44 @@ def clean_failed_csv(done):
             w.writerow(header)
             w.writerows(still_failed)
         log.info(f"Cleaned failed.csv: removed {removed} codes that succeeded on retry.")
+
+# ── Hierarchy file builder ────────────────────────────────────────────────────
+
+def build_hierarchy_file(all_codes):
+    """
+    Generate 'pct codes with hierarchy.csv' from the scraped master list.
+    Each row has the HS code plus its Chapter / Sub Chapter / Heading / Sub Heading
+    descriptions derived from prefix lookups — same logic used by combine_output.py.
+    Skipped if file already exists and is non-empty (idempotent).
+    """
+    if os.path.exists(FILE_HIERARCHY) and os.path.getsize(FILE_HIERARCHY) > 100:
+        log.info("pct codes with hierarchy.csv already present — skipping rebuild.")
+        return
+
+    # Build code → description lookup (strip spaces so prefixes align cleanly)
+    lookup = {}
+    for hs_code, description, _, _ in all_codes:
+        cleaned = hs_code.replace(" ", "")
+        lookup[cleaned] = description
+
+    rows = []
+    for hs_code, description, _, _ in all_codes:
+        cleaned = str(hs_code.replace(" ", ""))  # explicit str — no scientific notation
+        rows.append([
+            cleaned,
+            description,
+            lookup.get(cleaned[:2], ""),   # Chapter description
+            lookup.get(cleaned[:4], ""),   # Sub Chapter description
+            lookup.get(cleaned[:6], ""),   # Heading description
+            lookup.get(cleaned[:8], ""),   # Sub Heading description
+        ])
+
+    init_csv(FILE_HIERARCHY, [
+        "HS Code", "Description",
+        "Chapter", "Sub Chapter", "Heading", "Sub Heading",
+    ])
+    append_rows(FILE_HIERARCHY, rows)
+    log.info(f"Built pct codes with hierarchy.csv — {len(rows)} entries.")
 
 # ── Page parsers ──────────────────────────────────────────────────────────────
 
@@ -326,6 +367,9 @@ def run():
     if not os.path.exists(FILE_MASTER) or os.path.getsize(FILE_MASTER) < 100:
         append_rows(FILE_MASTER, [(c, d, i, l) for c, d, i, l in all_codes])
 
+    # Build the hierarchy reference file (idempotent — skipped if already exists)
+    build_hierarchy_file(all_codes)
+
     leaf_codes = [(hs, desc) for hs, desc, _, is_leaf in all_codes if is_leaf]
     log.info(f"Found {len(leaf_codes)} leaf-level HS codes to scrape.")
 
@@ -433,7 +477,7 @@ def run():
 
     log.info("=" * 60)
     log.info(f"Scraping complete. Output saved to: {OUT_DIR}/")
-    for f in [FILE_MASTER, FILE_TARIFFS, FILE_CESS, FILE_EXEMPTIONS,
+    for f in [FILE_MASTER, FILE_HIERARCHY, FILE_TARIFFS, FILE_CESS, FILE_EXEMPTIONS,
               FILE_ANTIDUMP, FILE_MEASURES, FILE_PROCEDURES, FILE_FAILED]:
         log.info(f"  {f}")
 

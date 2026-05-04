@@ -83,7 +83,7 @@ with open(os.path.join(OUT_DIR, "cess_collection.csv"), newline="", encoding="ut
 # ── Load exemptions (summarise as count + pipe-delimited list) ────────────────
 exemptions = defaultdict(list)
 
-with open(os.path.join(OUT_DIR, "exemptions_concessions.csv"), newline="", encoding="utf-8") as f:
+with open(os.path.join(OUT_DIR, "exemption_concessions.csv"), newline="", encoding="utf-8") as f:
     for row in csv.DictReader(f):
         hs = row["HS Code"]
         hs_meta[hs] = row["Description"]
@@ -101,7 +101,7 @@ with open(os.path.join(OUT_DIR, "anti_dump_tariffs.csv"), newline="", encoding="
 
 # ── Load NTM Measures (summarise as count + pipe-delimited list) ──────────────
 measures_data = defaultdict(list)
-ntm_file = os.path.join(OUT_DIR, "ntm_measures.csv")
+ntm_file = os.path.join(OUT_DIR, "measures.csv")
 if os.path.exists(ntm_file):
     with open(ntm_file, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):

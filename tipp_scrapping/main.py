@@ -92,9 +92,9 @@ def get_stats():
         master_codes=count_csv_rows("hs_codes_master.csv"),
         tariffs=count_csv_rows("tariffs.csv"),
         cess=count_csv_rows("cess_collection.csv"),
-        exemptions=count_csv_rows("exemptions_concessions.csv"),
+        exemptions=count_csv_rows("exemption_concessions.csv"),
         antidump=count_csv_rows("anti_dump_tariffs.csv"),
-        measures=count_csv_rows("ntm_measures.csv"),
+        measures=count_csv_rows("measures.csv"),
         procedures=count_csv_rows("procedures.csv"),
         products=count_csv_rows("products.csv"),
         failed=count_csv_rows("failed.csv")
@@ -138,6 +138,54 @@ def trigger_details_scrape(background_tasks: BackgroundTasks):
 def trigger_combine(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_script, "combine_output.py", "combine_data")
     return {"message": "Data combination started"}
+
+@app.post("/tasks/full-pipeline")
+def trigger_full_pipeline(background_tasks: BackgroundTasks):
+    """
+    Run the complete scraping pipeline in sequence:
+      1. tipp_scraper.py   — tariffs, cess, exemptions, anti-dump, measures, procedures
+                             + generates pct codes with hierarchy.csv automatically
+      2. scrape_products.py — products table (reads hierarchy file produced in step 1)
+      3. combine_output.py  — merges everything into combined_tariffs.csv
+
+    Safe to re-run: each script resumes from its checkpoint and skips already-done work.
+    """
+    for key in ("full_scrape", "products_scrape", "combine_data"):
+        if tasks_status[key]["status"] == "running":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task '{key}' is already running — wait for it to finish first."
+            )
+
+    def pipeline():
+        import subprocess, time
+
+        python_path = ".venv/bin/python" if os.path.exists(".venv/bin/python") else "python"
+
+        steps = [
+            ("tipp_scraper.py",   "full_scrape"),
+            ("scrape_products.py","products_scrape"),
+            ("combine_output.py", "combine_data"),
+        ]
+
+        for script, task_key in steps:
+            tasks_status[task_key]["status"]   = "running"
+            tasks_status[task_key]["last_run"] = datetime.now().isoformat()
+            logger.info(f"[pipeline] Starting {script}…")
+            result = subprocess.run(
+                [python_path, script],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                tasks_status[task_key]["status"] = "completed"
+                logger.info(f"[pipeline] {script} completed.")
+            else:
+                tasks_status[task_key]["status"] = "failed"
+                logger.error(f"[pipeline] {script} failed:\n{result.stderr[-2000:]}")
+                break   # stop pipeline on first failure
+
+    background_tasks.add_task(pipeline)
+    return {"message": "Full pipeline started: tipp_scraper → scrape_products → combine_output"}
 
 @app.get("/logs")
 def get_logs(lines: int = 100):

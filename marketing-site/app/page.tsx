@@ -4,11 +4,11 @@ import Hero from "@/components/HeroSection";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "TradeMate — AI-Powered Trade Intelligence",
+  title: `${process.env.NEXT_PUBLIC_APP_NAME} — AI-Powered Trade Intelligence`,
   description:
     "Instant HS code classification, tariff analysis, and live shipping rates powered by AI. Built for the Pakistan–US trade corridor.",
   openGraph: {
-    title: "TradeMate — AI-Powered Trade Intelligence",
+    title: `${process.env.NEXT_PUBLIC_APP_NAME} — AI-Powered Trade Intelligence`,
     description:
       "Instant HS code classification, tariff analysis, and live shipping rates powered by AI.",
     url: "/",
@@ -19,7 +19,7 @@ export default function HomePage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "TradeMate",
+    name: `${process.env.NEXT_PUBLIC_APP_NAME}`,
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: "/",
@@ -210,7 +210,7 @@ export default function HomePage() {
               marginBottom: "1.5rem",
             }}
           >
-            Join trading companies using TradeMate.
+            Join trading companies using {process.env.NEXT_PUBLIC_APP_NAME}.
           </p>
           <Link
             href="/contact"

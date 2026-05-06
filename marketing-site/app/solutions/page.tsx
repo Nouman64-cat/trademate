@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Solutions",
   description:
-    "TradeMate provides tailored trade intelligence solutions for importers, exporters, freight forwarders, and enterprises. Streamline customs compliance, optimize shipping, and reduce costs.",
+    `${process.env.NEXT_PUBLIC_APP_NAME} provides tailored trade intelligence solutions for importers, exporters, freight forwarders, and enterprises. Streamline customs compliance, optimize shipping, and reduce costs.`,
 };
 
 const solutions = [
@@ -13,7 +13,7 @@ const solutions = [
     title: "For Importers",
     subtitle: "Reduce landed costs and ensure compliance",
     description:
-      "Stop guessing at HS codes and duty rates. TradeMate instantly classifies your products, identifies applicable exemptions, and calculates your total landed cost — before your shipment leaves the factory.",
+      `Stop guessing at HS codes and duty rates. ${process.env.NEXT_PUBLIC_APP_NAME} instantly classifies your products, identifies applicable exemptions, and calculates your total landed cost — before your shipment leaves the factory.`,
     benefits: [
       "Instant HS code classification with 99.7% accuracy",
       "Auto-detect SRO exemptions and anti-dumping duties",
@@ -27,7 +27,7 @@ const solutions = [
     title: "For Exporters",
     subtitle: "Expand globally with confidence",
     description:
-      "Navigate complex destination country requirements. TradeMate helps you understand tariffs, labeling requirements, and certification needs for any market you want to enter.",
+      `Navigate complex destination country requirements. ${process.env.NEXT_PUBLIC_APP_NAME} helps you understand tariffs, labeling requirements, and certification needs for any market you want to enter.`,
     benefits: [
       "Multi-country tariff comparison in seconds",
       "Certificate of origin requirements by destination",
@@ -143,7 +143,7 @@ export default function SolutionsPage() {
               lineHeight: 1.6,
             }}
           >
-            Whether you import, export, or move freight — TradeMate adapts to your workflow with
+            Whether you import, export, or move freight — {process.env.NEXT_PUBLIC_APP_NAME} adapts to your workflow with
             role-specific intelligence and automation.
           </p>
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
@@ -318,7 +318,7 @@ export default function SolutionsPage() {
               margin: "0 auto 2rem",
             }}
           >
-            Join hundreds of trading companies already using TradeMate to streamline their operations.
+            Join hundreds of trading companies already using {process.env.NEXT_PUBLIC_APP_NAME} to streamline their operations.
           </p>
           <Link
             href="/contact"

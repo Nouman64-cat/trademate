@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AnimatedCursor from "@/components/AnimatedCursor";
 
 type Vehicle = {
@@ -30,16 +30,18 @@ function getVehicleIcon(fromType: string, toType: string, progress: number) {
 
 function WorldMapBackground() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const rafRef = useRef<number | undefined>(undefined);
+  const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     const locKeys = Object.keys(locations);
     const initial: Vehicle[] = [];
-    
+
     for (let i = 0; i < 4; i++) {
       const fromKey = locKeys[Math.floor(Math.random() * locKeys.length)];
       let toKey = locKeys[Math.floor(Math.random() * locKeys.length)];
       while (toKey === fromKey) toKey = locKeys[Math.floor(Math.random() * locKeys.length)];
-      
+
       initial.push({
         from: locations[fromKey as keyof typeof locations],
         to: locations[toKey as keyof typeof locations],
@@ -52,24 +54,33 @@ function WorldMapBackground() {
 
   useEffect(() => {
     if (vehicles.length === 0) return;
-    
-    const interval = setInterval(() => {
-      setVehicles((prev) =>
-        prev.map((v) => ({
-          ...v,
-          progress: v.progress >= 1 ? 0 : v.progress + 0.002,
-        }))
-      );
-    }, 60);
-    
-    return () => clearInterval(interval);
+
+    const STEP_INTERVAL = 60;
+
+    const tick = (timestamp: number) => {
+      if (timestamp - lastTimeRef.current >= STEP_INTERVAL) {
+        lastTimeRef.current = timestamp;
+        setVehicles((prev) =>
+          prev.map((v) => ({
+            ...v,
+            progress: v.progress >= 1 ? 0 : v.progress + 0.002,
+          }))
+        );
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [vehicles.length]);
 
   const routeColors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-      <svg viewBox="0 0 100 50" style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.2 }}>
+      <svg viewBox="0 0 100 50" style={{ position: "absolute", width: "100%", height: "100%", opacity: 0.4 }}>
         <g fill="var(--color-brand-400)">
           <path d="M8 12 L22 10 L32 16 L38 28 L28 36 L18 34 L10 28 Z" />
           <path d="M22 38 L28 40 L32 48 L26 48 L22 42 Z" />
@@ -93,7 +104,7 @@ function WorldMapBackground() {
               stroke={routeColors[v.id % routeColors.length]}
               strokeWidth={isInternational ? "0.15" : "0.2"}
               strokeDasharray={isInternational ? "2 1" : "0.8 0.4"}
-              opacity={0.3}
+              opacity={0.5}
             />
           );
         })}
@@ -125,7 +136,7 @@ function WorldMapBackground() {
 
       <svg viewBox="0 0 100 50" style={{ position: "absolute", width: "100%", height: "100%" }}>
         {Object.values(locations).map((loc, i) => (
-          <circle key={i} cx={loc.x} cy={loc.y} r="0.3" fill="var(--color-brand-400)" opacity={0.35} />
+          <circle key={i} cx={loc.x} cy={loc.y} r="0.3" fill="var(--color-brand-400)" opacity={0.55} />
         ))}
       </svg>
     </div>
@@ -133,6 +144,19 @@ function WorldMapBackground() {
 }
 
 function Hero() {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollOpacity = Math.max(0, 1 - scrollY / 150);
+
   return (
     <section
       style={{
@@ -231,7 +255,17 @@ function Hero() {
         </div>
       </div>
 
-      <div style={{ position: "absolute", bottom: "2rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.375rem" }}>
+      <div style={{ 
+        position: "absolute", 
+        bottom: "2rem", 
+        display: "flex", 
+        flexDirection: "column", 
+        alignItems: "center", 
+        gap: "0.375rem",
+        opacity: scrollOpacity,
+        transition: "opacity 0.1s ease-out",
+        pointerEvents: "none"
+      }}>
         <span style={{ fontSize: "0.625rem", color: "var(--text-muted)", letterSpacing: "0.15em" }}>SCROLL</span>
       </div>
     </section>

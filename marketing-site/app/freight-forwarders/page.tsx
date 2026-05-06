@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "For Freight Forwarders",
   description:
-    "TradeMate helps freight forwarders serve clients faster with instant HS codes, live shipping rates, and AI-powered trade intelligence.",
+    `${process.env.NEXT_PUBLIC_APP_NAME} helps freight forwarders serve clients faster with instant HS codes, live shipping rates, and AI-powered trade intelligence.`,
 };
 
 const benefits = [
@@ -171,7 +171,7 @@ export default function FreightForwardersPage() {
             textAlign: "center",
           }}
         >
-          Why Forwarders Choose TradeMate
+          Why Forwarders Choose {process.env.NEXT_PUBLIC_APP_NAME}
         </h2>
         <p
           style={{
@@ -335,7 +335,7 @@ export default function FreightForwardersPage() {
             margin: "0 auto 2.5rem",
           }}
         >
-          How forwarders use TradeMate day-to-day.
+          How forwarders use {process.env.NEXT_PUBLIC_APP_NAME} day-to-day.
         </p>
         <div
           style={{

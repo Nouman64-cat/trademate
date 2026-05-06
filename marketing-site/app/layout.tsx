@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
@@ -17,14 +17,14 @@ const geistMono = Geist_Mono({
 });
 
 const siteConfig = {
-  name: "IntelliTrade",
-  shortName: "IntelliTrade",
+  name: process.env.NEXT_PUBLIC_APP_NAME || "TradeMate",
+  shortName: process.env.NEXT_PUBLIC_APP_NAME || "TradeMate",
   description:
     "AI-powered trade intelligence platform for instant HS code classification, tariff analysis, and shipping route optimization across Pakistan and the US.",
-  url: "https://intellotrade.com",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://trademate.ai",
   ogImage: "/images/og-image.png",
-  twitter: "@intellotrade",
-  email: "hello@intellotrade.com",
+  twitter: "@trademate",
+  email: "hello@trademate.ai",
 };
 
 export const metadata: Metadata = {
@@ -75,9 +75,12 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-  verification: {
-    google: "google-site-verification-code",
-  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#3b82f6",
 };
 
 export default function RootLayout({
@@ -94,7 +97,7 @@ export default function RootLayout({
     email: siteConfig.email,
     sameAs: [
       `https://twitter.com/${siteConfig.twitter.replace("@", "")}`,
-      "https://linkedin.com/company/intellotrade",
+      "https://linkedin.com/company/trademate",
     ],
   };
 
@@ -123,4 +126,3 @@ export default function RootLayout({
   );
 }
 
-export { siteConfig };

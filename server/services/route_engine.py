@@ -635,6 +635,24 @@ def evaluate_routes(
             )
             rate_source = "live"
 
+            # Replace static sea/air leg transit with live Freightos times when available.
+            # Inland days, port processing, and customs days remain from the JSON since
+            # Freightos only covers the port-to-port segment.
+            if live.transit_min_days is not None and live.transit_max_days is not None:
+                transit = TransitBreakdown(
+                    inland_days=transit.inland_days,
+                    sea_air_days_min=live.transit_min_days,
+                    sea_air_days_max=live.transit_max_days,
+                    port_processing=transit.port_processing,
+                    customs_days=transit.customs_days,
+                    total_min=round(transit.inland_days + live.transit_min_days + transit.port_processing + transit.customs_days, 1),
+                    total_max=round(transit.inland_days + live.transit_max_days + transit.port_processing + transit.customs_days + 1, 1),
+                )
+                logger.info(
+                    "[ROUTE] Live transit for %s: %d–%d days (sea/air leg)",
+                    route["id"], live.transit_min_days, live.transit_max_days,
+                )
+
         # Air routes contain airport codes (JFK, ORD, LAX) — keep name as-is.
         # Sea routes use generic city names that need localising for non-default destinations.
         display_name = (

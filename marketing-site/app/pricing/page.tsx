@@ -5,7 +5,7 @@ import PricingContent from "@/components/pricing/PricingContent";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple, transparent pricing for TradeMate. Starter at $49/mo, Professional at $149/mo, and Enterprise at $499/mo. Annual plans save 20%.",
+    "Simple, transparent pricing for TradeMate. Starter at $30/mo, Professional at $90/mo, and Enterprise at $250/mo. Annual plans save 20%.",
 };
 
 export default function PricingPage() {

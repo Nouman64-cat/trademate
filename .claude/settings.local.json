@@ -56,6 +56,8 @@
       "Bash(curl -s \"http://localhost:8003/logs?lines=20\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=5\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=3\")",
+      "Bash(grep -n '\"\\\\${process' app/use-cases/page.tsx app/case-studies/page.tsx)",
+      "Bash(Remove-Item *)"
       "Read(//proc/1864774/**)",
       "Bash(sudo grep *)",
       "Bash(sudo /usr/local/bin/python3.12 -c \"import anthropic; print\\(anthropic.__version__\\)\")",

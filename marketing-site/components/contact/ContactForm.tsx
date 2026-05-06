@@ -122,7 +122,7 @@ export default function ContactForm() {
               marginBottom: "1rem",
             }}
           >
-            See TradeMate{" "}
+            See {process.env.NEXT_PUBLIC_APP_NAME}{" "}
             <span className="text-gradient">live in action</span>
           </h1>
 

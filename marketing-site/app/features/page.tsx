@@ -7,7 +7,7 @@ import type { Feature } from "@/lib/static-data";
 export const metadata: Metadata = {
   title: "Features",
   description:
-    "Explore TradeMate's full feature set: AI trade chat, HS code intelligence, knowledge graph, live shipping rates, tariff analysis, voice assistant, and document pipeline.",
+    `Explore ${process.env.NEXT_PUBLIC_APP_NAME}'s full feature set: AI trade chat, HS code intelligence, knowledge graph, live shipping rates, tariff analysis, voice assistant, and document pipeline.`,
 };
 
 // ── Inline SVG icons matching Lucide React style ───────────────────────────

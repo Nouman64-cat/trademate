@@ -5,12 +5,18 @@ import { useEffect, useState, useRef } from "react";
 type VehicleType = "truck" | "plane" | "ship";
 
 export default function AnimatedCursor() {
+  const [isPointerFine, setIsPointerFine] = useState(false);
   const [position, setPosition] = useState({ x: -100, y: -100 });
   const [trailingPosition, setTrailingPosition] = useState({ x: -100, y: -100 });
   const [vehicle, setVehicle] = useState<VehicleType>("truck");
   const requestRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    setIsPointerFine(window.matchMedia("(pointer: fine)").matches);
+  }, []);
+
+  useEffect(() => {
+    if (!isPointerFine) return;
     const vehicles: VehicleType[] = ["truck", "plane", "ship"];
     const interval = setInterval(() => {
       setVehicle((prev) => {
@@ -19,9 +25,10 @@ export default function AnimatedCursor() {
       });
     }, 3500);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPointerFine]);
 
   useEffect(() => {
+    if (!isPointerFine) return;
     let currentX = -100;
     let currentY = -100;
     let targetX = -100;
@@ -35,10 +42,10 @@ export default function AnimatedCursor() {
     const animate = () => {
       currentX += (targetX - currentX) * 0.1;
       currentY += (targetY - currentY) * 0.1;
-      
+
       setPosition({ x: targetX, y: targetY });
       setTrailingPosition({ x: currentX, y: currentY });
-      
+
       requestRef.current = requestAnimationFrame(animate);
     };
 
@@ -49,7 +56,7 @@ export default function AnimatedCursor() {
       window.removeEventListener("mousemove", handleMouseMove);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, []);
+  }, [isPointerFine]);
 
   const getRotation = () => {
     if (position.x > trailingPosition.x + 2) return -10;
@@ -155,6 +162,8 @@ export default function AnimatedCursor() {
       default: return renderTruck();
     }
   };
+
+  if (!isPointerFine) return null;
 
   return (
     <div

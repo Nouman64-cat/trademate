@@ -6,7 +6,7 @@ import { team, testimonials, platformStats } from "@/lib/static-data";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Meet the team behind TradeMate — a final-year project built by four engineers passionate about making Pakistan–US trade intelligence accessible to everyone.",
+    `Meet the team behind ${process.env.NEXT_PUBLIC_APP_NAME} — a final-year project built by four engineers passionate about making Pakistan–US trade intelligence accessible to everyone.`,
 };
 
 // ── Star rating ────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ export default function AboutPage() {
               margin: "0 auto",
             }}
           >
-            TradeMate started from a simple frustration: why does it take hours
+            ${process.env.NEXT_PUBLIC_APP_NAME} started from a simple frustration: why does it take hours
             of manual research to answer a basic trade question? We built an AI
             platform that makes world-class trade intelligence available to
             everyone — from solo importers in Lahore to freight desks in Chicago.
@@ -178,7 +178,7 @@ export default function AboutPage() {
               Meet the team
             </h2>
             <p style={{ color: "var(--text-secondary)", maxWidth: "460px", margin: "0 auto", lineHeight: 1.6 }}>
-              Four engineers who built TradeMate as a final-year project and
+              Four engineers who built ${process.env.NEXT_PUBLIC_APP_NAME} as a final-year project and
               haven&apos;t stopped shipping since.
             </p>
           </div>
@@ -351,7 +351,7 @@ export default function AboutPage() {
             Want to collaborate or give feedback?
           </h2>
           <p style={{ color: "var(--text-secondary)", marginBottom: "2rem", maxWidth: "460px", margin: "0 auto 2rem", lineHeight: 1.6 }}>
-            We&apos;re always looking for industry feedback to make TradeMate
+            We&apos;re always looking for industry feedback to make {process.env.NEXT_PUBLIC_APP_NAME}
             more useful for real traders.
           </p>
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>

@@ -55,7 +55,18 @@
       "Bash(curl -s \"http://localhost:8003/logs?lines=10\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=20\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=5\")",
-      "Bash(curl -s \"http://localhost:8003/logs?lines=3\")"
+      "Bash(curl -s \"http://localhost:8003/logs?lines=3\")",
+      "Read(//proc/1864774/**)",
+      "Bash(sudo grep *)",
+      "Bash(sudo /usr/local/bin/python3.12 -c \"import anthropic; print\\(anthropic.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"import anthropic; print\\(anthropic.__version__\\)\")",
+      "Bash(curl -s --max-time 5 -o /dev/null -w \"%{http_code}\" https://api.anthropic.com/)",
+      "Bash(awk '{print $1, $2, $9, $10, $11}')",
+      "Bash(awk '{print $1, $2, $9, $10, substr\\($0, index\\($0,$11\\)\\)}')",
+      "Bash(sudo kill *)",
+      "Bash(.venv/bin/pip show *)",
+      "Bash(sudo -n docker compose -f /home/nouman-ejaz/projects/trademate/docker-compose.yml logs server --tail=100)",
+      "Bash(sudo -n docker ps)"
     ]
   }
 }

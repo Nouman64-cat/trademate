@@ -47,14 +47,14 @@ logger = logging.getLogger(__name__)
 # fall through to that when no local copy exists under knowledge_graph/.
 _CSV_CANDIDATES = [
     Path(__file__).parent / "data/PK-PCT",
-    Path(__file__).parent.parent / "tipp_scrapping/data/data/PK-PCT",
+    Path(__file__).parent.parent / "tipp_scrapping/data/PK-PCT",
 ]
 CSV_DIR = next((p for p in _CSV_CANDIDATES if p.exists()), _CSV_CANDIDATES[0])
 
 PCT_CSV        = CSV_DIR / "pct codes with hierarchy.csv"
-TARIFFS_CSV    = CSV_DIR / "tariffs.csv"
+TARIFFS_CSV    = CSV_DIR / "combined_tariffs.csv"
 CESS_CSV       = CSV_DIR / "cess_collection.csv"
-EXEMPTIONS_CSV = CSV_DIR / "exemptions_concessions.csv"
+EXEMPTIONS_CSV = CSV_DIR / "exemption_concessions.csv"
 ANTIDUMP_CSV   = CSV_DIR / "anti_dump_tariffs.csv"
 PROCEDURES_CSV = CSV_DIR / "procedures.csv"
 MEASURES_CSV   = CSV_DIR / "measures.csv"
@@ -225,10 +225,10 @@ def load_checkpoint(driver, label: str, id_field: str) -> set[str]:
 
 def _build_embedding_text(row: pd.Series) -> str:
     parts = [
-        f"Chapter: {clean(row.get('Chapter Description')) or ''}",
-        f"Sub-chapter: {clean(row.get('Sub Chapter Description')) or ''}",
-        f"Heading: {clean(row.get('Heading Description')) or ''}",
-        f"Sub-heading: {clean(row.get('Sub Heading Description')) or ''}",
+        f"Chapter: {clean(row.get('Chapter')) or ''}",
+        f"Sub-chapter: {clean(row.get('Sub Chapter')) or ''}",
+        f"Heading: {clean(row.get('Heading')) or ''}",
+        f"Sub-heading: {clean(row.get('Sub Heading')) or ''}",
         f"HS Code: {clean(row.get('Description')) or ''}",
         f"Full Code: {clean(row.get('HS Code')) or ''}",
     ]
@@ -284,7 +284,19 @@ def ingest_hierarchy(driver, embeddings_model) -> None:
     skipped_no_code = 0
 
     for _, row in df.iterrows():
-        hs_code = normalize_hs(row.get("HS Code"))
+        raw = str(row.get("HS Code") or "").strip()
+        if not raw:
+            skipped_no_code += 1
+            continue
+        # Skip non-leaf rows (chapter/heading/sub-heading level codes).
+        # Only 12-digit codes are leaf HS codes; shorter codes are hierarchy
+        # labels that must not become HSCode nodes.
+        raw_digits = "".join(c for c in raw if c.isdigit())
+        is_scientific = "E" in raw.upper() and "." in raw
+        if not is_scientific and len(raw_digits) != 12:
+            skipped_no_code += 1
+            continue
+        hs_code = normalize_hs(raw)
         if not hs_code:
             skipped_no_code += 1
             continue
@@ -317,17 +329,17 @@ def ingest_hierarchy(driver, embeddings_model) -> None:
     rows: list[dict] = []
     for (row, hs_code), emb in zip(new_items, all_embeddings):
         rows.append({
-            "chapter_code":    clean(row.get("Chapter Code"))            or "UNKNOWN",
-            "chapter_desc":    clean(row.get("Chapter Description"))     or "",
-            "subchapter_code": clean(row.get("Sub Chapter Code"))        or "UNKNOWN",
-            "subchapter_desc": clean(row.get("Sub Chapter Description")) or "",
-            "heading_code":    clean(row.get("Heading Code"))            or "UNKNOWN",
-            "heading_desc":    clean(row.get("Heading Description"))     or "",
-            "subheading_code": clean(row.get("Sub Heading Code"))        or "UNKNOWN",
-            "subheading_desc": clean(row.get("Sub Heading Description")) or "",
+            "chapter_code":    hs_code[:2],
+            "chapter_desc":    clean(row.get("Chapter"))     or "",
+            "subchapter_code": hs_code[:4],
+            "subchapter_desc": clean(row.get("Sub Chapter")) or "",
+            "heading_code":    hs_code[:6],
+            "heading_desc":    clean(row.get("Heading"))     or "",
+            "subheading_code": hs_code[:8],
+            "subheading_desc": clean(row.get("Sub Heading")) or "",
             "hs_code":         hs_code,
-            "hs_desc":         clean(row.get("Description"))             or "",
-            "full_label":      clean(row.get("Full Code"))               or "",
+            "hs_desc":         clean(row.get("Description")) or "",
+            "full_label":      hs_code,
             "embedding":       emb,
         })
 

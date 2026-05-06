@@ -34,6 +34,11 @@ class SearchResult(BaseModel):
     similarity_score: Optional[float] = None
 
 
+# PK nodes use property "code" (12-digit); US nodes use property "hts_code" (dotted).
+def _code_prop(source: str) -> str:
+    return "hts_code" if source == "US" else "code"
+
+
 @router.get("/hs-code/{hs_code}", response_model=HSCodeDetail)
 def get_hs_code(
     hs_code: str,
@@ -43,17 +48,17 @@ def get_hs_code(
     """
     Get detailed information about a specific HS code including all relationships.
 
-    - **hs_code**: The HS code to query (e.g., "010121000000" for PK, "0101.21" for US)
+    - **hs_code**: The HS code to query (e.g., "010121000000" for PK, "0101.21.00" for US)
     - **source**: Data source - "PK" for Pakistan or "US" for United States
     - **include_embedding**: Whether to include the embedding vector in response
     """
+    prop = _code_prop(source)
     driver = get_driver()
 
     try:
         with driver.session() as session:
-            # Get HS code node
             hs_result = session.run(
-                f"MATCH (hs:HSCode:{source} {{code: $code}}) RETURN hs",
+                f"MATCH (hs:HSCode:{source} {{{prop}: $code}}) RETURN hs",
                 code=hs_code,
             )
             hs_record = hs_result.single()
@@ -66,55 +71,48 @@ def get_hs_code(
 
             hs_node = dict(hs_record["hs"])
 
-            # Get tariffs
             tariffs_result = session.run(
-                f"MATCH (hs:HSCode:{source} {{code: $code}})-[:HAS_TARIFF]->(t:Tariff) RETURN t",
+                f"MATCH (hs:HSCode:{source} {{{prop}: $code}})-[:HAS_TARIFF]->(t:Tariff) RETURN t",
                 code=hs_code,
             )
             tariffs = [dict(record["t"]) for record in tariffs_result]
 
-            # Get exemptions
             exemptions_result = session.run(
-                f"MATCH (hs:HSCode:{source} {{code: $code}})-[:HAS_EXEMPTION]->(e:Exemption) RETURN e",
+                f"MATCH (hs:HSCode:{source} {{{prop}: $code}})-[:HAS_EXEMPTION]->(e:Exemption) RETURN e",
                 code=hs_code,
             )
             exemptions = [dict(record["e"]) for record in exemptions_result]
 
-            # Get procedures
             procedures_result = session.run(
-                f"MATCH (hs:HSCode:{source} {{code: $code}})-[:REQUIRES_PROCEDURE]->(p:Procedure) RETURN p",
+                f"MATCH (hs:HSCode:{source} {{{prop}: $code}})-[:REQUIRES_PROCEDURE]->(p:Procedure) RETURN p",
                 code=hs_code,
             )
             procedures = [dict(record["p"]) for record in procedures_result]
 
-            # Get measures
             measures_result = session.run(
-                f"MATCH (hs:HSCode:{source} {{code: $code}})-[:HAS_MEASURE]->(m:Measure) RETURN m",
+                f"MATCH (hs:HSCode:{source} {{{prop}: $code}})-[:HAS_MEASURE]->(m:Measure) RETURN m",
                 code=hs_code,
             )
             measures = [dict(record["m"]) for record in measures_result]
 
-            # Get cess (PK only)
             cess = []
             if source == "PK":
                 cess_result = session.run(
-                    f"MATCH (hs:HSCode:PK {{code: $code}})-[:HAS_CESS]->(c:Cess) RETURN c",
+                    "MATCH (hs:HSCode:PK {code: $code})-[:HAS_CESS]->(c:Cess) RETURN c",
                     code=hs_code,
                 )
                 cess = [dict(record["c"]) for record in cess_result]
 
-            # Get anti-dumping (PK only)
             anti_dumping = []
             if source == "PK":
                 ad_result = session.run(
-                    f"MATCH (hs:HSCode:PK {{code: $code}})-[:HAS_ANTI_DUMPING]->(a:AntiDumpingDuty) RETURN a",
+                    "MATCH (hs:HSCode:PK {code: $code})-[:HAS_ANTI_DUMPING]->(a:AntiDumpingDuty) RETURN a",
                     code=hs_code,
                 )
                 anti_dumping = [dict(record["a"]) for record in ad_result]
 
         driver.close()
 
-        # Remove embedding if not requested (it's a large array)
         embedding = None
         if include_embedding and "embedding" in hs_node:
             embedding = hs_node["embedding"]
@@ -123,7 +121,7 @@ def get_hs_code(
             code=hs_code,
             description=hs_node.get("description", ""),
             source=source,
-            full_label=hs_node.get("full_label"),
+            full_label=hs_node.get("full_label") or hs_node.get("full_path_description"),
             embedding=embedding,
             tariffs=tariffs,
             exemptions=exemptions,
@@ -160,27 +158,41 @@ def search_hs_codes(
 
     try:
         with driver.session() as session:
-            # Case-insensitive text search on description
-            search_result = session.run(
-                f"""
-                MATCH (hs:HSCode:{source})
-                WHERE toLower(hs.description) CONTAINS toLower($query)
-                   OR hs.code CONTAINS $query
-                RETURN hs.code AS code,
-                       hs.description AS description,
-                       hs.full_label AS full_label
-                LIMIT $limit
-                """,
-                query=q,
-                limit=limit,
-            )
+            if source == "US":
+                search_result = session.run(
+                    """
+                    MATCH (hs:HSCode:US)
+                    WHERE toLower(hs.description) CONTAINS toLower($query)
+                       OR (hs.hts_code IS NOT NULL AND hs.hts_code CONTAINS $query)
+                    RETURN hs.hts_code          AS code,
+                           hs.description        AS description,
+                           hs.full_path_description AS full_label
+                    LIMIT $limit
+                    """,
+                    query=q,
+                    limit=limit,
+                )
+            else:
+                search_result = session.run(
+                    """
+                    MATCH (hs:HSCode:PK)
+                    WHERE toLower(hs.description) CONTAINS toLower($query)
+                       OR hs.code CONTAINS $query
+                    RETURN hs.code       AS code,
+                           hs.description AS description,
+                           hs.full_label  AS full_label
+                    LIMIT $limit
+                    """,
+                    query=q,
+                    limit=limit,
+                )
 
             results = []
             for record in search_result:
                 results.append(
                     SearchResult(
-                        code=record["code"],
-                        description=record["description"],
+                        code=record["code"] or "",
+                        description=record["description"] or "",
                         source=source,
                         full_label=record.get("full_label"),
                     )
@@ -203,43 +215,78 @@ def get_hierarchy(
     source: str = Query("PK", description="Source: PK or US"),
 ):
     """
-    Get the complete hierarchy path for an HS code.
+    Get the hierarchy path for an HS code.
 
-    Returns Chapter → SubChapter → Heading → SubHeading → HSCode
+    PK: returns Chapter → SubChapter → Heading → SubHeading → HSCode
+    US: returns the ancestor chain via HAS_CHILD relationships
     """
     driver = get_driver()
 
     try:
         with driver.session() as session:
-            hierarchy_result = session.run(
-                f"""
-                MATCH path = (ch:Chapter)-[:HAS_SUBCHAPTER]->(sc:SubChapter)
-                             -[:HAS_HEADING]->(hd:Heading)
-                             -[:HAS_SUBHEADING]->(sh:SubHeading)
-                             -[:HAS_HSCODE]->(hs:HSCode:{source} {{code: $code}})
-                RETURN ch, sc, hd, sh, hs
-                """,
-                code=hs_code,
-            )
+            if source == "US":
+                # US nodes use HAS_CHILD chains; no Chapter/Heading hierarchy.
+                result = session.run(
+                    """
+                    MATCH (hs:HSCode:US {hts_code: $code})
+                    OPTIONAL MATCH (hs)<-[:HAS_CHILD*1..6]-(ancestor:HSCode:US)
+                    RETURN hs,
+                           collect(DISTINCT {
+                               hts_code: ancestor.hts_code,
+                               description: ancestor.description,
+                               indent: ancestor.indent
+                           }) AS ancestors
+                    """,
+                    code=hs_code,
+                )
+                record = result.single()
 
-            record = hierarchy_result.single()
+                if not record or record["hs"] is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"HS Code '{hs_code}' not found in US data",
+                    )
 
-            if not record:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"HS Code '{hs_code}' or its hierarchy not found in {source} data",
+                hs_node = dict(record["hs"])
+                # Sort ancestors by indent ascending (root first)
+                ancestors = sorted(
+                    [a for a in record["ancestors"] if a.get("hts_code")],
+                    key=lambda a: a.get("indent") or 0,
+                )
+                return {
+                    "hs_code": hs_node,
+                    "ancestors": ancestors,
+                }
+
+            else:
+                hierarchy_result = session.run(
+                    """
+                    MATCH path = (ch:Chapter)-[:HAS_SUBCHAPTER]->(sc:SubChapter)
+                                 -[:HAS_HEADING]->(hd:Heading)
+                                 -[:HAS_SUBHEADING]->(sh:SubHeading)
+                                 -[:HAS_HSCODE]->(hs:HSCode:PK {code: $code})
+                    RETURN ch, sc, hd, sh, hs
+                    """,
+                    code=hs_code,
                 )
 
-            hierarchy = {
-                "chapter": dict(record["ch"]),
-                "subchapter": dict(record["sc"]),
-                "heading": dict(record["hd"]),
-                "subheading": dict(record["sh"]),
-                "hs_code": dict(record["hs"]),
-            }
+                record = hierarchy_result.single()
+
+                if not record:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"HS Code '{hs_code}' or its hierarchy not found in PK data",
+                    )
+
+                return {
+                    "chapter":    dict(record["ch"]),
+                    "subchapter": dict(record["sc"]),
+                    "heading":    dict(record["hd"]),
+                    "subheading": dict(record["sh"]),
+                    "hs_code":    dict(record["hs"]),
+                }
 
         driver.close()
-        return hierarchy
 
     except HTTPException:
         driver.close()

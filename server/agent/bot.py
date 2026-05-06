@@ -95,7 +95,7 @@ BOT_LLM_MODEL = os.getenv("BOT_LLM_MODEL", "gpt-5.4")
 # whenever the DB and document store can't answer a question. Sonnet 4.6
 # gives the strongest synthesis / citation quality. Override via env to
 # claude-haiku-4-5 if you want cheaper / faster lookups at lower fidelity.
-WEB_SEARCH_MODEL = os.getenv("WEB_SEARCH_MODEL", "claude-haiku-4-5-20251001")
+WEB_SEARCH_MODEL = os.getenv("WEB_SEARCH_MODEL", "claude-sonnet-4-6")
 # Maximum number of search queries Claude is allowed to issue per tool call.
 # Higher = better recall on multi-faceted questions, more expensive.
 WEB_SEARCH_MAX_USES = int(os.getenv("WEB_SEARCH_MAX_USES", "3"))

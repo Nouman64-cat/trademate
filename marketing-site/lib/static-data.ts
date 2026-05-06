@@ -69,38 +69,39 @@ export const team: TeamMember[] = [
   {
     id: "tm-1",
     name: "Abdul Rehman",
-    role: "Full-Stack Engineer & AI Lead",
-    bio: "Architected TradeMate's multi-agent LangGraph pipeline, knowledge graph ingestion, and the FastAPI microservices backbone. Passionate about making global trade accessible through AI.",
+    role: "AI Engineer",
+    bio: `Architected ${process.env.NEXT_PUBLIC_APP_NAME}'s multi-agent LangGraph pipeline, knowledge graph ingestion, and the FastAPI microservices backbone. Passionate about making global trade accessible through AI.`,
     avatar: "/images/team/placeholder-team.webp",
-    linkedin: "https://linkedin.com",
-    github: "https://github.com",
+    linkedin: "https://www.linkedin.com/in/abdul-rehman-54621a266/",
+    github: "https://github.com/AbdulRehman942004",
   },
   {
     id: "tm-2",
-    name: "Akif Butt",
+    name: "Akif Aziz",
     role: "Frontend Engineer & Product Designer",
     bio: "Leads the client and admin portal UX, chat interface, route visualizations, and marketing site. Focuses on turning complex trade data into intuitive, actionable interfaces.",
     avatar: "/images/team/placeholder-team.webp",
-    linkedin: "https://linkedin.com",
+    linkedin: "https://www.linkedin.com/in/akif-aziz-211972281/",
     github: "https://github.com",
   },
   {
     id: "tm-3",
-    name: "Sara Malik",
-    role: "Data Engineer & ML Specialist",
-    bio: "Responsible for the RAG data pipeline, semantic chunking strategy, Pinecone vector indexing, and the automated research runner that keeps TradeMate's knowledge base current.",
-    avatar: "/images/team/placeholder-team.webp",
-    linkedin: "https://linkedin.com",
-  },
-  {
-    id: "tm-4",
-    name: "Omar Farooq",
+    name: "Hussain Adnan",
     role: "Backend Engineer & DevOps",
     bio: "Manages the Docker Compose infrastructure, Celery task scheduling, AWS SES email integration, and CI/CD pipelines. Ensures TradeMate runs reliably at scale.",
     avatar: "/images/team/placeholder-team.webp",
-    linkedin: "https://linkedin.com",
-    github: "https://github.com",
+    linkedin: "https://www.linkedin.com/in/hussain-adnan-553b65307/",
+    github: "https://github.com/hussainrizvipk03-debug",
   },
+  // {
+  //   id: "tm-4",
+  //   name: "Nouman Ijaz",
+  //   role: "Full Stack Engineer",
+  //   bio: `Responsible for the RAG data pipeline, semantic chunking strategy, Pinecone vector indexing, and the automated research runner that keeps ${process.env.NEXT_PUBLIC_APP_NAME}'s knowledge base current.`,
+  //   avatar: "/images/team/placeholder-team.webp",
+  //   linkedin: "https://www.linkedin.com/in/nouman-ejaz-64251125b/",
+  //   github: "https://github.com/Nouman64-cat",
+  // },
 ];
 
 // ── Testimonials ──────────────────────────────────────────────────────────────
@@ -109,30 +110,30 @@ export const testimonials: Testimonial[] = [
   {
     id: "t-1",
     quote:
-      "TradeMate cut our HS code classification time from hours to seconds. What used to require three different databases and a compliance expert is now a single AI-powered query. It's a genuine game-changer for our import operations.",
-    author: "Zainab Hussain",
-    title: "Head of Trade Compliance",
-    company: "NovaTex Exports, Lahore",
+      `${process.env.NEXT_PUBLIC_APP_NAME} cut our HS code classification time from hours to seconds. What used to require sifting through multiple databases and a compliance expert is now a single AI-powered query. It's a genuine game-changer for our import operations.`,
+    author: "Adnan Saeed Rizvi",
+    title: "CEO",
+    company: "Saeed Trading and Co., Islamabad",
     avatar: "/images/team/placeholder-team.webp",
     rating: 5,
   },
   {
     id: "t-2",
     quote:
-      "The live Freightos rate integration alone pays for the subscription. Being able to ask 'what's the cheapest sea freight route from Karachi to Los Angeles for 20ft FCL?' and get an answer with cost breakdowns in real time is incredibly powerful.",
-    author: "James Whitfield",
-    title: "Logistics Director",
-    company: "Meridian Freight Solutions, Chicago",
+      "The real-time tariff and shipping analysis is game-changing. Being able to ask 'what's the total landed cost from Karachi to Los Angeles?' and get a breakdown instantly gives us a massive edge over our competitors.",
+    author: "Syed Faraz Mehdi",
+    title: "Operations Director",
+    company: "Rizviz International Impex, Lahore",
     avatar: "/images/team/placeholder-team.webp",
     rating: 5,
   },
   {
     id: "t-3",
     quote:
-      "We integrated TradeMate's API into our ERP in under a day. The tariff data for both Pakistan and the US is remarkably comprehensive — it even handles anti-dumping duties and SRO exemptions that most tools completely miss.",
-    author: "Bilal Chaudhry",
-    title: "CTO",
-    company: "TradeLink Technologies, Islamabad",
+      `${process.env.NEXT_PUBLIC_APP_NAME}'s ability to instantly retrieve and summarize complex customs documents and SROs has transformed our workflow. It's literally like having a trade expert available 24/7.`,
+    author: "Furqan Saeed",
+    title: "Managing Partner",
+    company: "Fed Point, USA",
     avatar: "/images/team/placeholder-team.webp",
     rating: 5,
   },
@@ -199,8 +200,8 @@ export const pricingTiers: PricingTier[] = [
     name: "Starter",
     description: "Perfect for individual traders and small import/export businesses getting started with AI-powered trade intelligence.",
     price: {
-      monthly: 49,
-      annual: 39,
+      monthly: 30,
+      annual: 24,
     },
     cta: "Start Free Trial",
     features: [
@@ -222,8 +223,8 @@ export const pricingTiers: PricingTier[] = [
     name: "Professional",
     description: "For growing trading companies and freight forwarders who need full platform access and live market data.",
     price: {
-      monthly: 149,
-      annual: 119,
+      monthly: 90,
+      annual: 72,
     },
     badge: "Most Popular",
     isPopular: true,
@@ -247,8 +248,8 @@ export const pricingTiers: PricingTier[] = [
     name: "Enterprise",
     description: "For large enterprises, customs brokers, and logistics platforms that need maximum scale, compliance features, and dedicated support.",
     price: {
-      monthly: 499,
-      annual: 399,
+      monthly: 250,
+      annual: 200,
     },
     cta: "Contact Sales",
     features: [
@@ -276,7 +277,7 @@ export const features: Feature[] = [
     name: "AI Trade Chat Agent",
     tagline: "Ask any trade question. Get expert-level answers instantly.",
     description:
-      "TradeMate's core AI agent is powered by a LangGraph multi-step reasoning engine. It classifies your query, selects the right tools (Knowledge Graph, Document RAG, Live Rates), executes them concurrently, and synthesizes a clear, actionable answer — with citations.",
+      `${process.env.NEXT_PUBLIC_APP_NAME}'s core AI agent is powered by a LangGraph multi-step reasoning engine. It classifies your query, selects the right tools (Knowledge Graph, Document RAG, Live Rates), executes them concurrently, and synthesizes a clear, actionable answer — with citations.`,
     icon: "MessageSquare",
     category: "AI Intelligence",
     capabilities: [
@@ -295,7 +296,7 @@ export const features: Feature[] = [
     name: "HS Code Intelligence",
     tagline: "Instant classification. Precise tariffs. Zero guesswork.",
     description:
-      "Stop manually searching through thousands of tariff schedule pages. TradeMate's Knowledge Graph contains the complete Pakistan PCT and US HTS schedules — including 4, 6, and 12-digit codes with full hierarchy traversal.",
+      `Stop manually searching through thousands of tariff schedule pages. ${process.env.NEXT_PUBLIC_APP_NAME}'s Knowledge Graph contains the complete Pakistan PCT and US HTS schedules — including 4, 6, and 12-digit codes with full hierarchy traversal.`,
     icon: "Search",
     category: "Trade Data",
     capabilities: [
@@ -314,7 +315,7 @@ export const features: Feature[] = [
     name: "Trade Knowledge Graph",
     tagline: "Every tariff, exemption, and rule — connected.",
     description:
-      "TradeMate models trade data as a graph, not a flat table. Every HS code is a node with edges to its tariff rates, SRO exemptions, anti-dumping orders, regulatory procedures, cess charges, and related measures. The result is a living, queryable map of trade compliance.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} models trade data as a graph, not a flat table. Every HS code is a node with edges to its tariff rates, SRO exemptions, anti-dumping orders, regulatory procedures, cess charges, and related measures. The result is a living, queryable map of trade compliance.`,
     icon: "GitBranch",
     category: "Knowledge Graph",
     capabilities: [
@@ -333,7 +334,7 @@ export const features: Feature[] = [
     name: "Shipping Route Planner",
     tagline: "Plan the optimal route. Know the total landed cost.",
     description:
-      "TradeMate integrates the Freightos API to fetch live FCL/LCL ocean and air freight spot quotes. Combined with its own cost engine, it calculates the complete DDP (Delivered Duty Paid) landed cost — factoring in THC, customs brokerage, drayage, MPF, HMF, and assessed HS duty.",
+      "${process.env.NEXT_PUBLIC_APP_NAME} integrates the Freightos API to fetch live FCL/LCL ocean and air freight spot quotes. Combined with its own cost engine, it calculates the complete DDP (Delivered Duty Paid) landed cost — factoring in THC, customs brokerage, drayage, MPF, HMF, and assessed HS duty.",
     icon: "Map",
     category: "Logistics",
     capabilities: [
@@ -352,7 +353,7 @@ export const features: Feature[] = [
     name: "Tariff & Duty Analysis",
     tagline: "Every duty, exemption, and SRO — explained in plain language.",
     description:
-      "TradeMate doesn't just look up tariff rates — it explains them. The AI synthesizes raw tariff schedule data with regulatory context to give you a clear picture of what you'll pay, what exemptions might apply, and what compliance steps are required.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} doesn't just look up tariff rates — it explains them. The AI synthesizes raw tariff schedule data with regulatory context to give you a clear picture of what you'll pay, what exemptions might apply, and what compliance steps are required.`,
     icon: "BarChart2",
     category: "Trade Data",
     capabilities: [
@@ -371,7 +372,7 @@ export const features: Feature[] = [
     name: "Voice Trade Assistant",
     tagline: "Speak your query. Hear your answer.",
     description:
-      "TradeMate's voice interface uses the OpenAI Realtime API (gpt-5.4 Realtime) to enable natural, spoken trade consultations. Up to 60-second real-time voice conversations give you hands-free access to the full platform intelligence.",
+      `${process.env.NEXT_PUBLIC_APP_NAME}'s voice interface uses the OpenAI Realtime API (gpt-5.4 Realtime) to enable natural, spoken trade consultations. Up to 60-second real-time voice conversations give you hands-free access to the full platform intelligence.`,
     icon: "Mic",
     category: "AI Intelligence",
     capabilities: [
@@ -389,7 +390,7 @@ export const features: Feature[] = [
     name: "Document Intelligence Pipeline",
     tagline: "Your trade documents. Searchable. Queryable. Always current.",
     description:
-      "TradeMate's RAG pipeline ingests trade policy documents, regulatory notices, and research reports into a Pinecone vector store. An automated researcher fetches and analyzes live news and trade publications hourly, keeping the knowledge base continuously updated.",
+      `${process.env.NEXT_PUBLIC_APP_NAME}'s RAG pipeline ingests trade policy documents, regulatory notices, and research reports into a Pinecone vector store. An automated researcher fetches and analyzes live news and trade publications hourly, keeping the knowledge base continuously updated.`,
     icon: "Database",
     category: "Data Infrastructure",
     capabilities: [
@@ -421,7 +422,6 @@ export const navLinks: NavItem[] = [
       { label: "Features", href: "/features", description: "Explore all capabilities" },
       { label: "Pricing", href: "/pricing", description: "Plans for every scale" },
       { label: "Voice Assistant", href: "/voice", description: "Speak your trade queries" },
-      { label: "API", href: "/docs", description: "Integrate into your systems" },
     ],
   },
   {
@@ -431,14 +431,13 @@ export const navLinks: NavItem[] = [
       { label: "For Importers", href: "/importers", description: "Streamline your imports" },
       { label: "For Exporters", href: "/exporters", description: "Expand globally" },
       { label: "Freight Forwarders", href: "/freight-forwarders", description: "Serve clients better" },
-      { label: "Enterprise", href: "/pricing", description: "Custom solutions" },
+      { label: "Enterprise", href: "/solutions/enterprise", description: "Custom solutions" },
     ],
   },
   {
     label: "Resources",
     href: "/resources",
     items: [
-      { label: "Documentation", href: "/docs", description: "API guides & references" },
       { label: "Blog", href: "/blog", description: "Trade insights & updates" },
       { label: "Case Studies", href: "/case-studies", description: "Success stories" },
       { label: "Help Center", href: "/help", description: "Support & FAQs" },

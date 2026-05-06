@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "For Exporters",
   description:
-    "TradeMate helps exporters expand globally. Get market intelligence, tariff analysis, and compliance guidance for destination markets.",
+    `${process.env.NEXT_PUBLIC_APP_NAME} helps exporters expand globally. Get market intelligence, tariff analysis, and compliance guidance for destination markets.`,
 };
 
 const benefits = [
@@ -211,7 +211,7 @@ export default function ExportersPage() {
             textAlign: "center",
           }}
         >
-          Why Exporters Choose TradeMate
+          Why Exporters Choose {process.env.NEXT_PUBLIC_APP_NAME}
         </h2>
         <p
           style={{
@@ -375,7 +375,7 @@ export default function ExportersPage() {
             margin: "0 auto 2.5rem",
           }}
         >
-          TradeMate handles all major export categories.
+          {process.env.NEXT_PUBLIC_APP_NAME} handles all major export categories.
         </p>
         <div
           style={{

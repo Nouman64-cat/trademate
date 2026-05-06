@@ -21,7 +21,7 @@ const caseStudies = [
       { label: "HS Accuracy", value: "99.9%", description: "Classification accuracy" },
     ],
     challenge:
-      "NovaTex was spending hours manually classifying products across 500+ SKUs. HS code errors were causing customs delays and unexpected duty costs. They needed a faster, more accurate way to classify纺织品.",
+      "NovaTex was spending hours manually classifying products across 500+ SKUs. HS code errors were causing customs delays and unexpected duty costs. They needed a faster, more accurate way to classify textile products.",
     solution:
       "TradeMate's AI automatically classifies each product and identifies applicable SRO exemptions. The team now generates accurate HS codes in seconds with full duty breakdowns.",
     result:

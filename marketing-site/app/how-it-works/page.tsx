@@ -6,7 +6,7 @@ import { platformStats } from "@/lib/static-data";
 export const metadata: Metadata = {
   title: "How It Works",
   description:
-    "See how TradeMate's multi-agent AI pipeline classifies queries, queries the knowledge graph, retrieves documents, and delivers streaming trade answers in under 3 seconds.",
+    `See how ${process.env.NEXT_PUBLIC_APP_NAME}'s multi-agent AI pipeline classifies queries, queries the knowledge graph, retrieves documents, and delivers streaming trade answers in under 3 seconds.`,
 };
 
 // ── Step data ─────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ const steps = [
     title: "You Ask",
     subtitle: "Natural language — typed or spoken",
     description:
-      "Type any trade question in plain English, or use the voice interface for hands-free queries. No special syntax, no form fields. TradeMate understands context from the full conversation history.",
+      `Type any trade question in plain English, or use the voice interface for hands-free queries. No special syntax, no form fields. ${process.env.NEXT_PUBLIC_APP_NAME} understands context from the full conversation history.`,
     detail: "Examples: \"What's the HS code for surgical gloves?\", \"Show me the cheapest sea route from Karachi to LA\", \"Are there any SRO exemptions for textile machinery?\"",
     accent: "var(--color-brand-400)",
     accentBg: "rgba(59,130,246,0.1)",
@@ -125,7 +125,7 @@ export default function HowItWorksPage() {
               margin: "0 auto",
             }}
           >
-            TradeMate&apos;s multi-agent pipeline combines a knowledge graph,
+            {process.env.NEXT_PUBLIC_APP_NAME}&apos;s multi-agent pipeline combines a knowledge graph,
             vector search, and live market data into a single conversational
             interface.
           </p>

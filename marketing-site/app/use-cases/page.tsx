@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Use Cases",
   description:
-    "Explore how TradeMate powers real-world trade scenarios: importing consumer electronics from China, exporting textiles to the US, shipping automotive parts, and more.",
+    `Explore how ${process.env.NEXT_PUBLIC_APP_NAME} powers real-world trade scenarios: importing consumer electronics from China, exporting textiles to the US, shipping automotive parts, and more.`,
 };
 
 const useCases = [
@@ -16,7 +16,7 @@ const useCases = [
     challenge:
       "HS code classification for 50+ different products, ensuring correct duty rates, and identifying SRO exemptions for tech components.",
     solution:
-      "TradeMate instantly classifies each product, flags applicable SROs (like SRO 653(I)/2023 for mobile phones), and calculates DDP landed costs including customs duties.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} instantly classifies each product, flags applicable SROs (like SRO 653(I)/2023 for mobile phones), and calculates DDP landed costs including customs duties.`,
     features: ["HS Code Intelligence", "Tariff Analysis", "DDP Calculations"],
     company: "TechStar Electronics",
   },
@@ -28,7 +28,7 @@ const useCases = [
     challenge:
       "Understanding US import tariffs, rules of origin requirements, and ensuring competitive landed costs against competitors from Bangladesh and Vietnam.",
     solution:
-      "TradeMate compares US HTS codes across origins, identifies GSP+ eligibility, and projects landed cost advantages for each market entry strategy.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} compares US HTS codes across origins, identifies GSP+ eligibility, and projects landed cost advantages for each market entry strategy.`,
     features: ["Multi-Country Comparison", "GSP Analysis", "Market Entry Intelligence"],
     company: "Royal Textiles",
   },
@@ -40,7 +40,7 @@ const useCases = [
     challenge:
       "Complex duty structures, parts that cross multiple HS categories, and managing anti-dumping duties on specific components.",
     solution:
-      "TradeMate navigates the HS complexity, alerts on anti-dumping duties by origin, and provides comprehensive DDP breakdowns for each shipping route.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} navigates the HS complexity, alerts on anti-dumping duties by origin, and provides comprehensive DDP breakdowns for each shipping route.`,
     features: ["HS Code Intelligence", "Anti-Dumping Alerts", "Route Optimization"],
     company: "MotorWay Auto",
   },
@@ -50,9 +50,9 @@ const useCases = [
     industry: "Healthcare & Pharma",
     scenario: "Importing medicines and medical devices into Pakistan",
     challenge:
-      "NavigatingDRAP regulations, identifying pharmaceutical-specific HS codes, and managing controlled items that require special permits.",
+      "Navigating DRAP regulations, identifying pharmaceutical-specific HS codes, and managing controlled items that require special permits.",
     solution:
-      "TradeMate provides specialized HS classifications for pharma products, identifies DRAP registration requirements, and flags items requiring special clearances.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} provides specialized HS classifications for pharma products, identifies DRAP registration requirements, and flags items requiring special clearances.`,
     features: ["Pharma HS Codes", "Regulatory Alerts", "Compliance Guidance"],
     company: "HealthCare Plus",
   },
@@ -64,7 +64,7 @@ const useCases = [
     challenge:
       "Meeting food safety standards, correctly classifying food products, and identifying applicable cess and additional duties.",
     solution:
-      "TradeMate classifies food products at the correct HS level, identifies all applicable cess and additional levies, and flags labeling requirements.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} classifies food products at the correct HS level, identifies all applicable cess and additional levies, and flags labeling requirements.`,
     features: ["Food HS Classification", "Cess Identification", "Labeling Guidance"],
     company: "Fresh Foods Co.",
   },
@@ -76,7 +76,7 @@ const useCases = [
     challenge:
       "Capital goods often qualify for exemptions, but identifying which machinery qualifies and ensuring proper documentation is critical.",
     solution:
-      "TradeMate identifies SRO tax exemptions for machinery, calculates total project costs including installation, and provides comprehensive compliance checklists.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} identifies SRO tax exemptions for machinery, calculates total project costs including installation, and provides comprehensive compliance checklists.`,
     features: ["Exemption Analysis", "DDP Calculations", "Compliance Checklists"],
     company: "Industrial Corp",
   },
@@ -113,7 +113,7 @@ export default function UseCasesPage() {
               lineHeight: 1.6,
             }}
           >
-            See how traders across industries use TradeMate to classify products,
+            See how traders across industries use {process.env.NEXT_PUBLIC_APP_NAME} to classify products,
             calculate costs, and ensure compliance.
           </p>
         </div>
@@ -304,7 +304,7 @@ export default function UseCasesPage() {
               margin: "0 auto 2rem",
             }}
           >
-            Our team can help you understand how TradeMate addresses your specific trade scenario.
+            Our team can help you understand how {process.env.NEXT_PUBLIC_APP_NAME} addresses your specific trade scenario.
           </p>
           <Link
             href="/contact"

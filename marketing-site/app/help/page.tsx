@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Help Center",
   description:
-    "Get help with TradeMate. Find answers to FAQs, troubleshooting guides, and contact support.",
+    `Get help with ${process.env.NEXT_PUBLIC_APP_NAME}. Find answers to FAQs, troubleshooting guides, and contact support.`,
 };
 
 const categories = [
@@ -13,7 +13,7 @@ const categories = [
     title: "Getting Started",
     icon: "rocket",
     articles: [
-      { label: "How to sign up for TradeMate", href: "#" },
+      { label: `How to sign up for ${process.env.NEXT_PUBLIC_APP_NAME}`, href: "#" },
       { label: "Understanding your dashboard", href: "#" },
       { label: "Your first HS code lookup", href: "#" },
       { label: "Inviting team members", href: "#" },
@@ -85,9 +85,9 @@ const faqs = [
   },
   {
     id: "faq-2",
-    question: "How accurate are TradeMate's HS codes?",
+    question: `How accurate are ${process.env.NEXT_PUBLIC_APP_NAME}'s HS codes?`,
     answer:
-      "TradeMate achieves 99.7% accuracy on HS code classification, validated against official Pakistan PCT and US HTS schedules. Our AI considers product descriptions, materials, function, and intended use to find the correct code.",
+      `${process.env.NEXT_PUBLIC_APP_NAME} achieves 99.7% accuracy on HS code classification, validated against official Pakistan PCT and US HTS schedules. Our AI considers product descriptions, materials, function, and intended use to find the correct code.`,
   },
   {
     id: "faq-3",
@@ -103,7 +103,7 @@ const faqs = [
   },
   {
     id: "faq-5",
-    question: "How do I integrate TradeMate into my ERP?",
+    question: `How do I integrate ${process.env.NEXT_PUBLIC_APP_NAME} into my ERP?`,
     answer:
       "Our REST API supports standard OAuth2 authentication. Check our docs for code samples in Python, JavaScript, and cURL. Integration typically takes less than a day.",
   },

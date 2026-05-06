@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### v8.3.0 5/7/2026
+
+#### Updated
+- Marketing-Site Content Updated 
+
 ### v8.2.2 5/4/2026
 
 #### Updated

@@ -55,7 +55,9 @@
       "Bash(curl -s \"http://localhost:8003/logs?lines=10\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=20\")",
       "Bash(curl -s \"http://localhost:8003/logs?lines=5\")",
-      "Bash(curl -s \"http://localhost:8003/logs?lines=3\")"
+      "Bash(curl -s \"http://localhost:8003/logs?lines=3\")",
+      "Bash(grep -n '\"\\\\${process' app/use-cases/page.tsx app/case-studies/page.tsx)",
+      "Bash(Remove-Item *)"
     ]
   }
 }

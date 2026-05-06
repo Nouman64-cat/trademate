@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Voice Assistant",
   description:
-    "Hands-free trade intelligence with TradeMate's Voice Assistant. Speak your queries and get instant answers on HS codes, tariffs, and shipping rates.",
+    `Hands-free trade intelligence with ${process.env.NEXT_PUBLIC_APP_NAME}'s Voice Assistant. Speak your queries and get instant answers on HS codes, tariffs, and shipping rates.`,
 };
 
 const features = [
@@ -19,7 +19,7 @@ const features = [
     id: "handsFree",
     title: "Hands-Free Operation",
     description:
-      "Use TradeMate while on the go. Check HS codes during warehouse visits or verify tariffs during client calls — all voice-activated.",
+      `Use ${process.env.NEXT_PUBLIC_APP_NAME} while on the go. Check HS codes during warehouse visits or verify tariffs during client calls — all voice-activated.`,
     icon: "Mic",
   },
   {

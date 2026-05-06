@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Resources",
   description:
-    "Documentation, guides, and insights to help you get the most out of TradeMate. Explore our API docs, read case studies, and stay updated with trade intelligence.",
+    `Documentation, guides, and insights to help you get the most out of ${process.env.NEXT_PUBLIC_APP_NAME}. Explore our API docs, read case studies, and stay updated with trade intelligence.`,
 };
 
 const resources = [
@@ -19,7 +19,7 @@ const resources = [
   {
     id: "case-studies",
     title: "Case Studies",
-    description: "See how trading companies transformed their operations with TradeMate.",
+    description: `See how trading companies transformed their operations with ${process.env.NEXT_PUBLIC_APP_NAME}.`,
     href: "/case-studies",
     icon: "FileText",
     count: "6 stories",
@@ -35,7 +35,7 @@ const resources = [
   {
     id: "help",
     title: "Help Center",
-    description: "FAQs, troubleshooting, and support for all your TradeMate questions.",
+    description: `FAQs, troubleshooting, and support for all your ${process.env.NEXT_PUBLIC_APP_NAME} questions.`,
     href: "#",
     icon: "HelpCircle",
     count: "24/7 support",
@@ -124,7 +124,7 @@ export default function ResourcesPage() {
               lineHeight: 1.6,
             }}
           >
-            Everything you need to integrate TradeMate into your workflow — from
+            Everything you need to integrate {process.env.NEXT_PUBLIC_APP_NAME} into your workflow — from
             API docs to industry insights.
           </p>
         </div>
@@ -246,7 +246,7 @@ export default function ResourcesPage() {
                 maxWidth: "400px",
               }}
             >
-              Our support team is here to help you with any questions about TradeMate.
+              Our support team is here to help you with any questions about {process.env.NEXT_PUBLIC_APP_NAME}.
             </p>
             <Link
               href="/contact"

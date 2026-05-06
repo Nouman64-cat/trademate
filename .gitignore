@@ -2,9 +2,10 @@
 .env
 __pycache__/
 
-#Ignore the data directory, which may contain large datasets or sensitive information
-
-data
+# Ignore large/sensitive data directories (server/data/*.json route files ARE tracked — they are small static config)
+knowledge_graph/data
+data_pipeline/data
+tipp_scrapping/data
 
 *.log
 

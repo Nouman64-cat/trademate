@@ -1,0 +1,240 @@
+{
+  "_comment": "USA → Pakistan route graph (mirror of pk_usa_routes.json). Indicative rates only. Used by services/route_engine.py when RouteEvaluationRequest.direction == 'US_TO_PK'.",
+  "routes": [
+    {
+      "id": "USP-SEA-WC-01",
+      "name": "Los Angeles → Singapore → Karachi (Maersk/MSC)",
+      "mode": "SEA",
+      "origin_port": "USLAX",
+      "hubs": ["Singapore"],
+      "destination_ports": ["PKKHI", "PKBQM"],
+      "destination_region": "PKSOUTH",
+      "carriers": ["Maersk", "MSC"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.83,
+      "transit_days": { "min": 28, "max": 36 },
+      "origin_thc_usd": 280,
+      "transshipment_thc_usd": 110,
+      "freight_rates": {
+        "FCL_20":   { "min": 2200, "max": 3800 },
+        "FCL_40":   { "min": 3600, "max": 6200 },
+        "FCL_40HC": { "min": 3800, "max": 6500 },
+        "LCL_CBM":  { "min": 60,   "max": 120 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "USP-SEA-WC-02",
+      "name": "Long Beach → Port Klang → Karachi (CMA CGM/ONE)",
+      "mode": "SEA",
+      "origin_port": "USLGB",
+      "hubs": ["Port Klang"],
+      "destination_ports": ["PKKHI", "PKBQM"],
+      "destination_region": "PKSOUTH",
+      "carriers": ["CMA CGM", "ONE"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.80,
+      "transit_days": { "min": 30, "max": 38 },
+      "origin_thc_usd": 270,
+      "transshipment_thc_usd": 105,
+      "freight_rates": {
+        "FCL_20":   { "min": 2100, "max": 3700 },
+        "FCL_40":   { "min": 3500, "max": 6000 },
+        "FCL_40HC": { "min": 3700, "max": 6300 },
+        "LCL_CBM":  { "min": 58,   "max": 115 }
+      },
+      "alerts": [
+        { "level": "info", "message": "Transshipment at Port Klang adds 3-5 days dwell time." }
+      ]
+    },
+    {
+      "id": "USP-SEA-EC-01",
+      "name": "New York → Suez Canal → Karachi (MSC/Hapag-Lloyd)",
+      "mode": "SEA",
+      "origin_port": "USNYK",
+      "hubs": ["Suez Canal", "Jebel Ali"],
+      "destination_ports": ["PKKHI", "PKBQM"],
+      "destination_region": "PKSOUTH",
+      "carriers": ["MSC", "Hapag-Lloyd"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.78,
+      "transit_days": { "min": 32, "max": 42 },
+      "origin_thc_usd": 290,
+      "transshipment_thc_usd": 100,
+      "freight_rates": {
+        "FCL_20":   { "min": 2400, "max": 4100 },
+        "FCL_40":   { "min": 3900, "max": 6700 },
+        "FCL_40HC": { "min": 4100, "max": 7000 },
+        "LCL_CBM":  { "min": 65,   "max": 125 }
+      },
+      "alerts": [
+        { "level": "info", "message": "Suez Canal congestion may add 2-4 days during peak season." }
+      ]
+    },
+    {
+      "id": "USP-SEA-EC-02",
+      "name": "Savannah → Suez Canal → Karachi (Evergreen/COSCO)",
+      "mode": "SEA",
+      "origin_port": "USSAV",
+      "hubs": ["Suez Canal", "Jebel Ali"],
+      "destination_ports": ["PKKHI"],
+      "destination_region": "PKSOUTH",
+      "carriers": ["Evergreen", "COSCO"],
+      "frequency_per_week": 1,
+      "reliability_score": 0.76,
+      "transit_days": { "min": 33, "max": 44 },
+      "origin_thc_usd": 270,
+      "transshipment_thc_usd": 100,
+      "freight_rates": {
+        "FCL_20":   { "min": 2300, "max": 4000 },
+        "FCL_40":   { "min": 3800, "max": 6500 },
+        "FCL_40HC": { "min": 4000, "max": 6800 },
+        "LCL_CBM":  { "min": 62,   "max": 120 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "USP-AIR-01",
+      "name": "JFK → Dubai → Karachi (Emirates SkyCargo)",
+      "mode": "AIR",
+      "origin_port": "JFK",
+      "hubs": ["Dubai (DXB)"],
+      "destination_ports": ["KHI"],
+      "destination_region": "PKSOUTH",
+      "carriers": ["Emirates SkyCargo"],
+      "frequency_per_week": 7,
+      "reliability_score": 0.93,
+      "transit_days": { "min": 3, "max": 5 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 5.20, "max": 8.40 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "USP-AIR-02",
+      "name": "ORD → Doha → Lahore (Qatar Airways Cargo)",
+      "mode": "AIR",
+      "origin_port": "ORD",
+      "hubs": ["Doha (DOH)"],
+      "destination_ports": ["LHE"],
+      "destination_region": "PKCENTRAL",
+      "carriers": ["Qatar Airways Cargo"],
+      "frequency_per_week": 6,
+      "reliability_score": 0.91,
+      "transit_days": { "min": 3, "max": 5 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 5.40, "max": 8.70 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "USP-AIR-03",
+      "name": "LAX → Dubai → Islamabad (Emirates SkyCargo)",
+      "mode": "AIR",
+      "origin_port": "LAX",
+      "hubs": ["Dubai (DXB)"],
+      "destination_ports": ["ISB"],
+      "destination_region": "PKNORTH",
+      "carriers": ["Emirates SkyCargo"],
+      "frequency_per_week": 5,
+      "reliability_score": 0.90,
+      "transit_days": { "min": 4, "max": 6 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 5.60, "max": 9.00 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "USP-AIR-04",
+      "name": "JFK → Istanbul → Sialkot (Turkish Cargo)",
+      "mode": "AIR",
+      "origin_port": "JFK",
+      "hubs": ["Istanbul (IST)"],
+      "destination_ports": ["SKT"],
+      "destination_region": "PKCENTRAL",
+      "carriers": ["Turkish Cargo"],
+      "frequency_per_week": 4,
+      "reliability_score": 0.88,
+      "transit_days": { "min": 4, "max": 7 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 5.80, "max": 9.30 }
+      },
+      "alerts": []
+    }
+  ],
+
+  "_inland_origins_comment": "US origin city → cost & days to nearest sea/air gateway. Indicative.",
+  "inland_origins": {
+    "Los Angeles":  { "to_sea_port_cost_usd": 60,  "to_air_port_cost_usd": 50,  "to_sea_port_days": 0.3, "to_air_port_days": 0.3 },
+    "Long Beach":   { "to_sea_port_cost_usd": 50,  "to_air_port_cost_usd": 70,  "to_sea_port_days": 0.2, "to_air_port_days": 0.5 },
+    "New York":     { "to_sea_port_cost_usd": 70,  "to_air_port_cost_usd": 60,  "to_sea_port_days": 0.3, "to_air_port_days": 0.3 },
+    "Chicago":      { "to_sea_port_cost_usd": 350, "to_air_port_cost_usd": 50,  "to_sea_port_days": 2.5, "to_air_port_days": 0.3 },
+    "Miami":        { "to_sea_port_cost_usd": 80,  "to_air_port_cost_usd": 60,  "to_sea_port_days": 0.4, "to_air_port_days": 0.3 },
+    "Savannah":     { "to_sea_port_cost_usd": 60,  "to_air_port_cost_usd": 200, "to_sea_port_days": 0.3, "to_air_port_days": 1.0 },
+    "Seattle":      { "to_sea_port_cost_usd": 70,  "to_air_port_cost_usd": 60,  "to_sea_port_days": 0.3, "to_air_port_days": 0.3 },
+    "Houston":      { "to_sea_port_cost_usd": 80,  "to_air_port_cost_usd": 70,  "to_sea_port_days": 0.4, "to_air_port_days": 0.3 },
+    "Dallas":       { "to_sea_port_cost_usd": 600, "to_air_port_cost_usd": 60,  "to_sea_port_days": 3.0, "to_air_port_days": 0.3 },
+    "Atlanta":      { "to_sea_port_cost_usd": 350, "to_air_port_cost_usd": 50,  "to_sea_port_days": 2.0, "to_air_port_days": 0.3 }
+  },
+
+  "_destination_charges_comment": "Pakistani destination city → THC, customs broker, and drayage costs. Region drives route filtering.",
+  "destination_charges": {
+    "Karachi":    { "region": "PKSOUTH",   "thc_usd": 220, "customs_broker_usd": 250, "drayage_usd": 120 },
+    "Lahore":     { "region": "PKCENTRAL", "thc_usd": 220, "customs_broker_usd": 280, "drayage_usd": 480 },
+    "Faisalabad": { "region": "PKCENTRAL", "thc_usd": 220, "customs_broker_usd": 270, "drayage_usd": 460 },
+    "Sialkot":    { "region": "PKCENTRAL", "thc_usd": 220, "customs_broker_usd": 270, "drayage_usd": 510 },
+    "Islamabad":  { "region": "PKNORTH",   "thc_usd": 220, "customs_broker_usd": 290, "drayage_usd": 560 },
+    "Multan":     { "region": "PKCENTRAL", "thc_usd": 220, "customs_broker_usd": 270, "drayage_usd": 420 },
+    "Peshawar":   { "region": "PKNORTH",   "thc_usd": 220, "customs_broker_usd": 290, "drayage_usd": 600 }
+  },
+
+  "_hs_duty_rates_comment": "Pakistan combined effective import duty by HS chapter (CD + RD + ACD + ST + IT, indicative). Coarse approximation — use search_pakistan_hs_data for the precise PCT breakdown.",
+  "hs_duty_rates": {
+    "default": 0.30,
+    "01": 0.05, "02": 0.20, "03": 0.20, "04": 0.20,
+    "06": 0.20, "07": 0.30, "08": 0.30, "09": 0.30, "10": 0.10,
+    "15": 0.16, "17": 0.30, "20": 0.45, "21": 0.30, "22": 0.65,
+    "27": 0.10,
+    "28": 0.16, "29": 0.16, "30": 0.10, "33": 0.45, "34": 0.30,
+    "39": 0.30, "40": 0.30,
+    "42": 0.40, "44": 0.30,
+    "48": 0.30, "49": 0.10,
+    "50": 0.10, "51": 0.10, "52": 0.10, "53": 0.10, "54": 0.10,
+    "55": 0.10, "56": 0.20, "57": 0.30, "58": 0.20, "59": 0.20,
+    "60": 0.20, "61": 0.30, "62": 0.30, "63": 0.30,
+    "64": 0.30,
+    "69": 0.30, "70": 0.30,
+    "71": 0.10, "72": 0.16, "73": 0.20,
+    "74": 0.10, "76": 0.16,
+    "82": 0.20, "83": 0.30,
+    "84": 0.16, "85": 0.20,
+    "87": 0.50,
+    "90": 0.10, "91": 0.30, "94": 0.30, "95": 0.30, "96": 0.30
+  },
+
+  "_fixed_charges_comment": "Per-shipment Pakistani import fixed fees and gov't levies on cargo value. Replaces US HMF/MPF used in pk_usa_routes.json.",
+  "fixed_charges": {
+    "isf_filing_usd": 0,
+    "bl_fee_usd": 60,
+    "seal_fee_usd": 15,
+    "isps_surcharge_usd": 25,
+    "documentation_usd": 90,
+    "hmf_rate": 0,
+    "mpf_rate": 0,
+    "mpf_min_usd": 0,
+    "mpf_max_usd": 0,
+    "_pk_specific_comment": "Pakistan applies port stevedoring and wharfage by tonnage; bundled here as a flat fee per shipment.",
+    "pk_wharfage_usd": 60,
+    "pk_port_handling_usd": 80,
+    "_withholding_tax_comment": "Pakistani income-tax withholding on commercial imports. Default 5.5% of cargo value. Override per HS chapter via search_pakistan_hs_data if needed.",
+    "pk_withholding_tax_rate": 0.055
+  }
+}

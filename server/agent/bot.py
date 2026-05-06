@@ -99,8 +99,6 @@ WEB_SEARCH_MODEL = os.getenv("WEB_SEARCH_MODEL", "claude-sonnet-4-6")
 # Maximum number of search queries Claude is allowed to issue per tool call.
 # Higher = better recall on multi-faceted questions, more expensive.
 WEB_SEARCH_MAX_USES = int(os.getenv("WEB_SEARCH_MAX_USES", "3"))
-# Web-search tool API version. Pinned to 20250305 (the older, GA version) —
-# newer 20260209 adds defer_loading / strict mode that we don't need yet.
 _WEB_SEARCH_TOOL_TYPE = "web_search_20250305"
 
 # vector_search.search has no label awareness — wide net then filter by label
@@ -1523,13 +1521,17 @@ def _get_anthropic_client():
     global _anthropic_client  # noqa: PLW0603
     if _anthropic_client is None:
         import anthropic
+        import httpx
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise EnvironmentError(
                 "ANTHROPIC_API_KEY must be set in .env to enable web_search_trade"
             )
-        _anthropic_client = anthropic.Anthropic(api_key=api_key)
+        _anthropic_client = anthropic.Anthropic(
+            api_key=api_key,
+            timeout=httpx.Timeout(timeout=90.0, connect=5.0),
+        )
         logger.info(
             "Anthropic client initialised (model=%s, max_uses=%d)",
             WEB_SEARCH_MODEL, WEB_SEARCH_MAX_USES,
@@ -1602,119 +1604,159 @@ def web_search_trade(query: str) -> str:
     sources. Cite the sources verbatim in your final reply. If the tool
     returns TOOL_ERROR, tell the user the web lookup failed.
     """
+    import time as _time
+    import anthropic as _anthropic
+
     query = query.strip()
     if not query:
         return "TOOL_ERROR: web_search_trade requires a non-empty query."
 
-    try:
-        logger.info("━━━ [WEB SEARCH] Query: %r", query[:120])
-        client = _get_anthropic_client()
+    _MAX_RETRIES = 3
+    _RETRY_DELAY = 8  # seconds between retries on rate-limit / overloaded errors
 
-        message = client.messages.create(
-            model=WEB_SEARCH_MODEL,
-            max_tokens=1500,
-            system=_WEB_SEARCH_SYSTEM_PROMPT,
-            tools=[
-                {
-                    "type": _WEB_SEARCH_TOOL_TYPE,
-                    "name": "web_search",
-                    "max_uses": WEB_SEARCH_MAX_USES,
-                }
-            ],
-            messages=[{"role": "user", "content": query}],
-        )
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            logger.info("━━━ [WEB SEARCH] Query: %r (attempt %d)", query[:120], attempt + 1)
+            client = _get_anthropic_client()
+            message = client.messages.create(
+                model=WEB_SEARCH_MODEL,
+                max_tokens=1500,
+                system=_WEB_SEARCH_SYSTEM_PROMPT,
+                tools=[
+                    {
+                        "type": _WEB_SEARCH_TOOL_TYPE,
+                        "name": "web_search",
+                        "max_uses": WEB_SEARCH_MAX_USES,
+                    }
+                ],
+                messages=[{"role": "user", "content": query}],
+            )
 
-        # Extract text + citations from the response. The SDK returns a list
-        # of content blocks. We're interested in:
-        #   - text blocks (Claude's composed answer)
-        #   - citations attached to those text blocks (each citation has a
-        #     url + title from the search result it grounds)
-        # We deliberately ignore web_search_tool_use / web_search_tool_result
-        # blocks — those are the raw tool I/O Claude made for itself, not
-        # something we want to surface to the OpenAI agent.
-        text_parts: list[str] = []
-        sources: list[tuple[str, str]] = []  # (title, url)
-        seen_urls: set[str] = set()
+            # Extract text + citations from the response. The SDK returns a list
+            # of content blocks. We're interested in:
+            #   - text blocks (Claude's composed answer)
+            #   - citations attached to those text blocks (each citation has a
+            #     url + title from the search result it grounds)
+            # We deliberately ignore web_search_tool_use / web_search_tool_result
+            # blocks — those are the raw tool I/O Claude made for itself, not
+            # something we want to surface to the OpenAI agent.
+            text_parts: list[str] = []
+            sources: list[tuple[str, str]] = []  # (title, url)
+            seen_urls: set[str] = set()
 
-        for block in message.content:
-            block_type = getattr(block, "type", None)
-            if block_type != "text":
-                continue
-            text = getattr(block, "text", "") or ""
-            text_parts.append(text)
-
-            citations = getattr(block, "citations", None) or []
-            for cit in citations:
-                url = getattr(cit, "url", None) or ""
-                title = getattr(cit, "title", None) or url
-                if not url or url in seen_urls:
+            for block in message.content:
+                block_type = getattr(block, "type", None)
+                if block_type != "text":
                     continue
-                seen_urls.add(url)
-                sources.append((title, url))
+                text = getattr(block, "text", "") or ""
+                text_parts.append(text)
 
-        answer = "\n\n".join(p.strip() for p in text_parts if p.strip()).strip()
-        if not answer:
-            logger.warning("━━━ [WEB SEARCH ✘] Empty answer from Anthropic.")
-            return (
-                "NO_RESULTS: Web search returned no usable answer. Tell the "
-                "user the web lookup did not find authoritative data and "
-                "suggest they rephrase or provide more context."
+                citations = getattr(block, "citations", None) or []
+                for cit in citations:
+                    url = getattr(cit, "url", None) or ""
+                    title = getattr(cit, "title", None) or url
+                    if not url or url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    sources.append((title, url))
+
+            answer = "\n\n".join(p.strip() for p in text_parts if p.strip()).strip()
+            if not answer:
+                logger.warning("━━━ [WEB SEARCH ✘] Empty answer from Anthropic.")
+                return (
+                    "NO_RESULTS: Web search returned no usable answer. Tell the "
+                    "user the web lookup did not find authoritative data and "
+                    "suggest they rephrase or provide more context."
+                )
+
+            # Stop reasons we care about:
+            #   end_turn — Claude finished naturally
+            #   max_tokens — answer truncated, still usable
+            stop_reason = getattr(message, "stop_reason", "") or ""
+            if stop_reason == "max_tokens":
+                answer += "\n\n_(Answer truncated at the token limit.)_"
+
+            # Format sources as a bulleted list with markdown links so the OpenAI
+            # agent can quote them in the final reply.
+            if sources:
+                source_lines = "\n".join(
+                    f"  • [{title}]({url})" for title, url in sources[:10]
+                )
+                blocks_out = (
+                    f"=== Web Search Result ===\n{answer}\n\n"
+                    f"Sources:\n{source_lines}"
+                )
+            else:
+                blocks_out = f"=== Web Search Result ===\n{answer}"
+
+            logger.info(
+                "━━━ [WEB SEARCH ✔] %d source(s), stop=%s, %d chars",
+                len(sources), stop_reason, len(answer),
             )
 
-        # Stop reasons we care about:
-        #   end_turn — Claude finished naturally
-        #   max_tokens — answer truncated, still usable
-        #   pause_turn — Claude paused mid-search (rare, treat as success)
-        # Anything else (e.g. tool_use w/o end_turn) we still return what we have.
-        stop_reason = getattr(message, "stop_reason", "") or ""
-        if stop_reason == "max_tokens":
-            answer += "\n\n_(Answer truncated at the token limit.)_"
+            ctx = request_ctx.get({})
+            if ctx.get("user_id"):
+                try:
+                    log_interaction(
+                        user_id=ctx["user_id"],
+                        interaction_type=InteractionType.document_retrieval,
+                        conversation_id=ctx.get("conversation_id"),
+                        query=query,
+                        metadata={
+                            "tool": "web_search_trade",
+                            "source_count": len(sources),
+                            "model": WEB_SEARCH_MODEL,
+                        },
+                    )
+                except Exception as log_exc:
+                    logger.warning("━━━ [WEB SEARCH] log_interaction failed (non-fatal): %s", log_exc)
 
-        # Format sources as a bulleted list with markdown links so the OpenAI
-        # agent can quote them in the final reply.
-        if sources:
-            source_lines = "\n".join(
-                f"  • [{title}]({url})" for title, url in sources[:10]
+            return blocks_out
+
+        except _anthropic.RateLimitError as exc:
+            last_exc = exc
+            logger.warning(
+                "━━━ [WEB SEARCH ✘] Rate limit hit (attempt %d/%d): %s",
+                attempt + 1, _MAX_RETRIES + 1, exc,
             )
-            blocks_out = (
-                f"=== Web Search Result ===\n{answer}\n\n"
-                f"Sources:\n{source_lines}"
+            if attempt < _MAX_RETRIES:
+                _time.sleep(_RETRY_DELAY)
+                continue
+        except _anthropic.APIStatusError as exc:
+            last_exc = exc
+            # 529 = Overloaded — retry like a rate limit; all other status errors are fatal
+            if exc.status_code == 529 and attempt < _MAX_RETRIES:
+                logger.warning(
+                    "━━━ [WEB SEARCH ✘] Anthropic overloaded 529 (attempt %d/%d) — retrying in %ds",
+                    attempt + 1, _MAX_RETRIES + 1, _RETRY_DELAY,
+                )
+                _time.sleep(_RETRY_DELAY)
+                continue
+            logger.error(
+                "━━━ [WEB SEARCH ✘] Anthropic API error %s (attempt %d): %s",
+                exc.status_code, attempt + 1, exc.message,
             )
-        else:
-            blocks_out = f"=== Web Search Result ===\n{answer}"
+            break
+        except Exception:  # noqa: BLE001
+            logger.exception("━━━ [WEB SEARCH ✘] web_search_trade failed (attempt %d)", attempt + 1)
+            break
 
-        logger.info(
-            "━━━ [WEB SEARCH ✔] %d source(s), stop=%s, %d chars",
-            len(sources), stop_reason, len(answer),
-        )
-
-        # Log interaction
-        ctx = request_ctx.get({})
-        if ctx.get("user_id"):
-            log_interaction(
-                user_id=ctx["user_id"],
-                interaction_type=InteractionType.document_retrieval,
-                conversation_id=ctx.get("conversation_id"),
-                query=query,
-                metadata={
-                    "tool": "web_search_trade",
-                    "source_count": len(sources),
-                    "model": WEB_SEARCH_MODEL,
-                },
-            )
-
-        return blocks_out
-
-    except Exception:  # noqa: BLE001
-        # Log full exception (incl. Anthropic error details) server-side, but
-        # return a sanitised string to the LLM so URLs / API keys / internal
-        # state never leak into the user-visible reply.
-        logger.exception("━━━ [WEB SEARCH ✘] web_search_trade failed")
+    if isinstance(last_exc, _anthropic.RateLimitError):
         return (
-            "TOOL_ERROR: The web search is temporarily unavailable. Tell the "
-            "user the live web lookup failed and ask them to retry, or to "
-            "rephrase the question. Do NOT include any internal error text."
+            "TOOL_ERROR: The web search rate limit was reached. Tell the user "
+            "to wait a moment and retry their question."
         )
+    if isinstance(last_exc, _anthropic.APIStatusError) and getattr(last_exc, "status_code", None) == 529:
+        return (
+            "TOOL_ERROR: The web search is temporarily overloaded. Tell the user "
+            "to wait a moment and retry their question."
+        )
+    return (
+        "TOOL_ERROR: The web search is temporarily unavailable. Tell the "
+        "user the live web lookup failed and ask them to retry, or to "
+        "rephrase the question. Do NOT include any internal error text."
+    )
 
 
 # ═══════════════════════════════════════════════════════

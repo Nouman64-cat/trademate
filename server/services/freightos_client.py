@@ -115,6 +115,8 @@ class FreightosRate:
     min_usd: float
     max_usd: float
     currency: str = "USD"
+    transit_min_days: int | None = None
+    transit_max_days: int | None = None
 
 
 class FreightosUnavailable(Exception):
@@ -199,7 +201,24 @@ def _parse_response(data: dict) -> FreightosRate:
         if not min_prices or not max_prices:
             raise FreightosUnavailable("Could not parse price from Freightos response")
 
-        return FreightosRate(min_usd=min(min_prices), max_usd=max(max_prices))
+        # Extract transit times if present (not all responses include them)
+        transit_min: int | None = None
+        transit_max: int | None = None
+        for m in modes:
+            if not m:
+                continue
+            tt = m.get("transitTimes", {})
+            if tt.get("min") is not None:
+                transit_min = int(tt["min"])
+            if tt.get("max") is not None:
+                transit_max = int(tt["max"])
+
+        return FreightosRate(
+            min_usd=min(min_prices),
+            max_usd=max(max_prices),
+            transit_min_days=transit_min,
+            transit_max_days=transit_max,
+        )
 
     except FreightosUnavailable:
         raise

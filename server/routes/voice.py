@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["voice"])
 
 _OPENAI_REALTIME_URL = (
-    "wss://api.openai.com/v1/realtime?model=gpt-realtime-1.5"
+    "wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview"
 )
 _SESSION_LIMIT_SECONDS = 60
 
@@ -167,7 +167,6 @@ _TOOL_SCHEMAS: list[dict] = [
 _SESSION_CONFIG = {
     "type": "session.update",
     "session": {
-        "type": "realtime",
         "modalities": ["text", "audio"],
         "instructions": (
             "You are TradeMate, a voice assistant for international trade, HS codes, "
@@ -282,6 +281,7 @@ async def voice_stream(
             _OPENAI_REALTIME_URL,
             additional_headers={
                 "Authorization": f"Bearer {api_key}",
+                "OpenAI-Beta": "realtime=v1",
             },
         ) as openai_ws:
 

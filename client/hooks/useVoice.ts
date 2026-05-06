@@ -261,14 +261,14 @@ export function useVoice(token: string) {
 
       // Log every server event type (skip audio deltas — too noisy)
       if (
-        event.type !== "response.output_audio.delta" &&
+        event.type !== "response.audio.delta" &&
         event.type !== "input_audio_buffer.append"
       ) {
         console.log("[VOICE] server event:", event.type, event.error ?? "");
       }
 
       // Play assistant audio chunks in order
-      if (event.type === "response.output_audio.delta" && typeof event.delta === "string") {
+      if (event.type === "response.audio.delta" && typeof event.delta === "string") {
         const f32 = pcm16Base64ToFloat32(event.delta);
         const buffer = audioCtx.createBuffer(1, f32.length, 24000);
         buffer.copyToChannel(f32 as any, 0);
@@ -305,7 +305,7 @@ export function useVoice(token: string) {
       }
 
       // Tool call finished — clear activity label when audio response begins
-      if (event.type === "response.output_audio.delta") {
+      if (event.type === "response.audio.delta") {
         setState((s) => (s.toolActivity ? { ...s, toolActivity: null } : s));
       }
 
@@ -318,7 +318,7 @@ export function useVoice(token: string) {
 
       // Accumulate assistant transcript delta (streamed character by character)
       if (
-        event.type === "response.output_audio_transcript.delta" &&
+        event.type === "response.audio_transcript.delta" &&
         typeof event.delta === "string"
       ) {
         const delta = event.delta;

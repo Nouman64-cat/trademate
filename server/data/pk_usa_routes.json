@@ -1,0 +1,385 @@
+{
+  "routes": [
+    {
+      "id": "PKR-SEA-EC-01",
+      "name": "Karachi → Suez Canal → New York (MSC/Evergreen)",
+      "mode": "SEA",
+      "origin_port": "PKKHIA",
+      "hubs": ["Port Said", "Suez Canal"],
+      "destination_ports": ["USNYK", "USBAL"],
+      "destination_region": "USEC",
+      "carriers": ["MSC", "Evergreen"],
+      "frequency_per_week": 3,
+      "reliability_score": 0.82,
+      "transit_days": { "min": 28, "max": 35 },
+      "origin_thc_usd": 120,
+      "transshipment_thc_usd": 95,
+      "freight_rates": {
+        "FCL_20":   { "min": 1600, "max": 2800 },
+        "FCL_40":   { "min": 2900, "max": 4800 },
+        "FCL_40HC": { "min": 3100, "max": 5100 },
+        "LCL_CBM":  { "min": 45,   "max": 90  }
+      },
+      "alerts": [
+        { "level": "info", "message": "Suez Canal congestion may add 2-4 days during peak season." }
+      ]
+    },
+    {
+      "id": "PKR-SEA-EC-02",
+      "name": "Karachi → Colombo → New York (COSCO/Maersk)",
+      "mode": "SEA",
+      "origin_port": "PKKHIA",
+      "hubs": ["Colombo", "Suez Canal"],
+      "destination_ports": ["USNYK", "USBAL"],
+      "destination_region": "USEC",
+      "carriers": ["COSCO", "Maersk"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.79,
+      "transit_days": { "min": 30, "max": 38 },
+      "origin_thc_usd": 120,
+      "transshipment_thc_usd": 95,
+      "freight_rates": {
+        "FCL_20":   { "min": 1500, "max": 2600 },
+        "FCL_40":   { "min": 2700, "max": 4500 },
+        "FCL_40HC": { "min": 2900, "max": 4800 },
+        "LCL_CBM":  { "min": 42,   "max": 85  }
+      },
+      "alerts": [
+        { "level": "info", "message": "Transshipment at Colombo adds 3-5 days dwell time." }
+      ]
+    },
+    {
+      "id": "PKR-SEA-WC-01",
+      "name": "Karachi → Singapore → Los Angeles (Hapag-Lloyd/ONE)",
+      "mode": "SEA",
+      "origin_port": "PKKHIA",
+      "hubs": ["Singapore"],
+      "destination_ports": ["USLAX", "USLGB"],
+      "destination_region": "USWC",
+      "carriers": ["Hapag-Lloyd", "ONE"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.85,
+      "transit_days": { "min": 22, "max": 30 },
+      "origin_thc_usd": 120,
+      "transshipment_thc_usd": 110,
+      "freight_rates": {
+        "FCL_20":   { "min": 1800, "max": 3200 },
+        "FCL_40":   { "min": 3200, "max": 5600 },
+        "FCL_40HC": { "min": 3400, "max": 5900 },
+        "LCL_CBM":  { "min": 50,   "max": 100 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "PKR-SEA-WC-02",
+      "name": "Karachi → Port Klang → Long Beach (MSC/Evergreen)",
+      "mode": "SEA",
+      "origin_port": "PKKHIA",
+      "hubs": ["Port Klang"],
+      "destination_ports": ["USLGB", "USLAX"],
+      "destination_region": "USWC",
+      "carriers": ["MSC", "Evergreen"],
+      "frequency_per_week": 2,
+      "reliability_score": 0.80,
+      "transit_days": { "min": 24, "max": 32 },
+      "origin_thc_usd": 120,
+      "transshipment_thc_usd": 105,
+      "freight_rates": {
+        "FCL_20":   { "min": 1700, "max": 3000 },
+        "FCL_40":   { "min": 3000, "max": 5200 },
+        "FCL_40HC": { "min": 3200, "max": 5500 },
+        "LCL_CBM":  { "min": 48,   "max": 95  }
+      },
+      "alerts": [
+        { "level": "info", "message": "Port Klang transshipment may add 2-3 days during peak season." }
+      ]
+    },
+    {
+      "id": "PKR-SEA-BOTH-01",
+      "name": "Karachi → Suez Canal → US Both Coasts (Maersk AE-1)",
+      "mode": "SEA",
+      "origin_port": "PKKHIA",
+      "hubs": ["Suez Canal"],
+      "destination_ports": ["USNYK", "USBAL", "USLAX", "USLGB"],
+      "destination_region": "BOTH",
+      "carriers": ["Maersk"],
+      "frequency_per_week": 1,
+      "reliability_score": 0.87,
+      "transit_days": { "min": 26, "max": 36 },
+      "origin_thc_usd": 120,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "FCL_20":   { "min": 1900, "max": 3400 },
+        "FCL_40":   { "min": 3400, "max": 6000 },
+        "FCL_40HC": { "min": 3600, "max": 6400 },
+        "LCL_CBM":  { "min": 55,   "max": 110 }
+      },
+      "alerts": [
+        { "level": "info", "message": "Direct Maersk service with no transshipment. Weekly departure." }
+      ]
+    },
+    {
+      "id": "PKR-AIR-EC-01",
+      "name": "Karachi → New York JFK (PIA/Emirates)",
+      "mode": "AIR",
+      "origin_port": "KHI",
+      "hubs": ["DXB"],
+      "destination_ports": ["JFK"],
+      "destination_region": "USEC",
+      "carriers": ["PIA", "Emirates"],
+      "frequency_per_week": 7,
+      "reliability_score": 0.88,
+      "transit_days": { "min": 2, "max": 4 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 3.5, "max": 7.5 }
+      },
+      "alerts": [
+        { "level": "info", "message": "Air freight subject to airline capacity. Book 3-5 days in advance." }
+      ]
+    },
+    {
+      "id": "PKR-AIR-WC-01",
+      "name": "Karachi → Los Angeles LAX (Emirates/Etihad)",
+      "mode": "AIR",
+      "origin_port": "KHI",
+      "hubs": ["DXB"],
+      "destination_ports": ["LAX"],
+      "destination_region": "USWC",
+      "carriers": ["Emirates", "Etihad"],
+      "frequency_per_week": 7,
+      "reliability_score": 0.90,
+      "transit_days": { "min": 2, "max": 3 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 4.0, "max": 8.5 }
+      },
+      "alerts": []
+    },
+    {
+      "id": "PKR-AIR-MW-01",
+      "name": "Karachi → Chicago ORD (Turkish Airlines/Qatar)",
+      "mode": "AIR",
+      "origin_port": "KHI",
+      "hubs": ["IST"],
+      "destination_ports": ["ORD"],
+      "destination_region": "USMW",
+      "carriers": ["Turkish Airlines", "Qatar Airways"],
+      "frequency_per_week": 7,
+      "reliability_score": 0.86,
+      "transit_days": { "min": 2, "max": 5 },
+      "origin_thc_usd": 0,
+      "transshipment_thc_usd": 0,
+      "freight_rates": {
+        "AIR_KG": { "min": 3.8, "max": 8.0 }
+      },
+      "alerts": [
+        { "level": "info", "message": "Via Istanbul. Connection times may add 1 day." }
+      ]
+    }
+  ],
+
+  "inland_origins": {
+    "Karachi": {
+      "to_sea_port_cost_usd": 80,
+      "to_air_port_cost_usd": 60,
+      "to_sea_port_days": 0.5,
+      "to_air_port_days": 0.5
+    },
+    "Lahore": {
+      "to_sea_port_cost_usd": 550,
+      "to_air_port_cost_usd": 120,
+      "to_sea_port_days": 2,
+      "to_air_port_days": 1
+    },
+    "Faisalabad": {
+      "to_sea_port_cost_usd": 600,
+      "to_air_port_cost_usd": 150,
+      "to_sea_port_days": 2,
+      "to_air_port_days": 1
+    },
+    "Sialkot": {
+      "to_sea_port_cost_usd": 650,
+      "to_air_port_cost_usd": 160,
+      "to_sea_port_days": 2,
+      "to_air_port_days": 1
+    },
+    "Peshawar": {
+      "to_sea_port_cost_usd": 900,
+      "to_air_port_cost_usd": 200,
+      "to_sea_port_days": 3,
+      "to_air_port_days": 2
+    },
+    "Islamabad": {
+      "to_sea_port_cost_usd": 750,
+      "to_air_port_cost_usd": 140,
+      "to_sea_port_days": 2.5,
+      "to_air_port_days": 1
+    },
+    "Multan": {
+      "to_sea_port_cost_usd": 450,
+      "to_air_port_cost_usd": 130,
+      "to_sea_port_days": 1.5,
+      "to_air_port_days": 1
+    }
+  },
+
+  "destination_charges": {
+    "New York": {
+      "region": "USEC",
+      "thc_usd": 350,
+      "customs_broker_usd": 275,
+      "drayage_usd": 450
+    },
+    "Baltimore": {
+      "region": "USEC",
+      "thc_usd": 320,
+      "customs_broker_usd": 260,
+      "drayage_usd": 380
+    },
+    "Miami": {
+      "region": "USEC",
+      "thc_usd": 340,
+      "customs_broker_usd": 270,
+      "drayage_usd": 420
+    },
+    "Los Angeles": {
+      "region": "USWC",
+      "thc_usd": 380,
+      "customs_broker_usd": 280,
+      "drayage_usd": 500
+    },
+    "Long Beach": {
+      "region": "USWC",
+      "thc_usd": 375,
+      "customs_broker_usd": 275,
+      "drayage_usd": 490
+    },
+    "Seattle": {
+      "region": "USWC",
+      "thc_usd": 330,
+      "customs_broker_usd": 265,
+      "drayage_usd": 410
+    },
+    "Chicago": {
+      "region": "USMW",
+      "thc_usd": 360,
+      "customs_broker_usd": 280,
+      "drayage_usd": 550
+    },
+    "Houston": {
+      "region": "USEC",
+      "thc_usd": 340,
+      "customs_broker_usd": 270,
+      "drayage_usd": 460
+    }
+  },
+
+  "hs_duty_rates": {
+    "default": 0.05,
+    "01": 0.00,
+    "02": 0.0026,
+    "03": 0.00,
+    "04": 0.177,
+    "06": 0.062,
+    "07": 0.071,
+    "08": 0.059,
+    "09": 0.00,
+    "10": 0.022,
+    "11": 0.032,
+    "12": 0.00,
+    "15": 0.035,
+    "16": 0.048,
+    "17": 0.043,
+    "18": 0.02,
+    "19": 0.085,
+    "20": 0.115,
+    "21": 0.065,
+    "22": 0.013,
+    "24": 0.316,
+    "25": 0.00,
+    "26": 0.00,
+    "27": 0.0053,
+    "28": 0.038,
+    "29": 0.031,
+    "30": 0.00,
+    "32": 0.038,
+    "33": 0.05,
+    "34": 0.029,
+    "35": 0.022,
+    "36": 0.032,
+    "37": 0.036,
+    "38": 0.038,
+    "39": 0.058,
+    "40": 0.025,
+    "41": 0.00,
+    "42": 0.08,
+    "43": 0.054,
+    "44": 0.028,
+    "46": 0.052,
+    "47": 0.00,
+    "48": 0.00,
+    "49": 0.00,
+    "50": 0.00,
+    "51": 0.069,
+    "52": 0.084,
+    "53": 0.038,
+    "54": 0.12,
+    "55": 0.12,
+    "56": 0.065,
+    "57": 0.035,
+    "58": 0.097,
+    "59": 0.075,
+    "60": 0.108,
+    "61": 0.198,
+    "62": 0.12,
+    "63": 0.068,
+    "64": 0.087,
+    "65": 0.048,
+    "66": 0.065,
+    "67": 0.037,
+    "68": 0.035,
+    "69": 0.054,
+    "70": 0.055,
+    "71": 0.065,
+    "72": 0.00,
+    "73": 0.03,
+    "74": 0.03,
+    "75": 0.03,
+    "76": 0.056,
+    "78": 0.00,
+    "79": 0.03,
+    "80": 0.00,
+    "81": 0.039,
+    "82": 0.049,
+    "83": 0.038,
+    "84": 0.012,
+    "85": 0.018,
+    "86": 0.014,
+    "87": 0.025,
+    "88": 0.00,
+    "89": 0.015,
+    "90": 0.028,
+    "91": 0.045,
+    "92": 0.048,
+    "93": 0.00,
+    "94": 0.00,
+    "95": 0.00,
+    "96": 0.042,
+    "97": 0.00
+  },
+
+  "fixed_charges": {
+    "isf_filing_usd": 35,
+    "bl_fee_usd": 50,
+    "seal_fee_usd": 15,
+    "isps_surcharge_usd": 25,
+    "documentation_usd": 75,
+    "hmf_rate": 0.00125,
+    "mpf_rate": 0.003464,
+    "mpf_min_usd": 27.23,
+    "mpf_max_usd": 528.33
+  }
+}

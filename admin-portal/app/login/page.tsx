@@ -1,22 +1,57 @@
 'use client';
 
-/**
- * Login Page
- *
- * Authentication page for admin portal access
- */
-
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Database,
+  Eye,
+  EyeOff,
+  LayoutDashboard,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldCheck,
+} from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
-import { Lock, Mail, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { ThemeToggle } from '../components/theme-toggle';
+import { AuthSplitLayout } from '../components/auth-split-layout';
+import type { AdminAuthFeature, AdminAuthStat } from '../components/auth-split-layout';
+import { cn } from '../utils/cn';
 
-export default function LoginPage() {
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
+// ── Brand panel content ───────────────────────────────────────────────────────
+
+const FEATURES: AdminAuthFeature[] = [
+  {
+    Icon: ShieldCheck,
+    title: 'Platform Security & Access Control',
+    desc: 'Manage admin roles, audit API access, and enforce system policies across every service.',
+  },
+  {
+    Icon: LayoutDashboard,
+    title: 'Live Operational Oversight',
+    desc: 'Monitor trade queries, freight evaluations, and AI response quality in real time.',
+  },
+  {
+    Icon: Database,
+    title: 'Data Pipeline Management',
+    desc: 'Orchestrate HS datasets, document ingestion, and knowledge graph updates end to end.',
+  },
+];
+
+const STATS: AdminAuthStat[] = [
+  { value: '100%', label: 'Audit Trail' },
+  { value: 'Live', label: 'Monitoring' },
+  { value: 'Admin', label: 'Access Only' },
+];
+
+// ── Admin login form ──────────────────────────────────────────────────────────
+
+function AdminLoginForm() {
+  const [email, setEmail]               = React.useState('');
+  const [password, setPassword]         = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
-  const [error, setError] = React.useState('');
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError]               = React.useState('');
+  const [isLoading, setIsLoading]       = React.useState(false);
 
   const { login, user } = useAuth();
   const router = useRouter();
@@ -32,134 +67,160 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
       await login(email, password);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Login failed. Please check your credentials.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <ShieldCheck className="h-10 w-10 text-white" />
+    <div className="flex min-h-screen flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-2 lg:invisible">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700">
+            <ShieldCheck size={14} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             TradeMate Admin
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Sign in to access the admin portal
-          </p>
+          </span>
         </div>
+        <ThemeToggle />
+      </div>
 
-        {/* Login Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-              </div>
-            )}
+      {/* Centered form */}
+      <div className="flex flex-1 items-center justify-center px-6 py-8">
+        <div className="w-full max-w-sm">
+          <div className="mb-7">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
+              Admin Access
+            </h2>
+            <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+              Sign in to TradeMate Admin Portal
+            </p>
+          </div>
 
-            {/* Email Field */}
-            <div>
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3.5 dark:border-red-800 dark:bg-red-950/30">
+              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            {/* Email */}
+            <div className="flex flex-col gap-1.5">
               <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                htmlFor="admin-email"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  id="email"
+                  id="admin-email"
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent transition-colors"
                   placeholder="admin@trademate.com"
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-500"
                 />
               </div>
             </div>
 
-            {/* Password Field */}
-            <div>
+            {/* Password */}
+            <div className="flex flex-col gap-1.5">
               <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                htmlFor="admin-password"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
-                  id="password"
+                  id="admin-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent transition-colors"
                   placeholder="Enter your password"
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-500"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:hover:text-gray-300"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className={cn(
+                'flex w-full items-center justify-center gap-2',
+                'h-10 rounded-lg text-sm font-semibold transition-all',
+                'bg-blue-600 text-white hover:bg-blue-700',
+                'focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-60'
+              )}
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Signing in...
+                  <Loader2 size={15} className="animate-spin" />
+                  Signing in…
                 </>
               ) : (
                 <>
-                  <Lock className="h-5 w-5" />
+                  <Lock size={15} />
                   Sign In
                 </>
               )}
             </button>
           </form>
 
-          {/* Help Text */}
-          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>Admin access required</p>
-            <p className="mt-2">
-              Contact your system administrator if you need access.
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>© 2024 TradeMate. All rights reserved.</p>
+          <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+            Admin access only. Contact your system administrator if you need access.
+          </p>
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="px-6 py-4 text-center text-xs text-gray-400 dark:text-gray-600">
+        © {new Date().getFullYear()} TradeMate. All rights reserved.
+      </div>
     </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function LoginPage() {
+  return (
+    <AuthSplitLayout
+      badge="Secure Admin Access"
+      headline={{ top: 'Command the', bottom: 'Trade Platform.' }}
+      tagline="Full visibility into every user session, AI interaction, data pipeline, and system configuration — all in one secure portal."
+      features={FEATURES}
+      stats={STATS}
+    >
+      <AdminLoginForm />
+    </AuthSplitLayout>
   );
 }

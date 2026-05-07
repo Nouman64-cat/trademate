@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### v8.3.1 5/7/2026
+
+#### Updated
+- Login and sign up pages UI changed and made it responsive for mobile view.
+
 ### v8.3.0 5/7/2026
 
 #### Updated

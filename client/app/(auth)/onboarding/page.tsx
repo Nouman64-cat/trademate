@@ -33,7 +33,7 @@ const FEATURES: AuthFeature[] = [
 
 const STATS: AuthStat[] = [
   { value: "< 1 min", label: "Setup" },
-  { value: "190+", label: "Countries" },
+  { value: "PAK & USA", label: "Countries" },
   { value: "AI", label: "Powered" },
 ];
 
@@ -116,8 +116,8 @@ function OnboardingForm() {
 
   const set =
     (key: keyof OnboardingRequest) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+      (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const validate = (): boolean => {
     const errors: Partial<Record<keyof OnboardingRequest, string>> = {};

@@ -21,7 +21,7 @@ const FEATURES: AuthFeature[] = [
   },
   {
     Icon: Globe,
-    title: "Access 190+ Global Markets",
+    title: "Access PAK & USA Global Markets",
     desc: "Navigate tariffs, regulations, and freight options across every major international trade lane.",
   },
   {
@@ -33,7 +33,7 @@ const FEATURES: AuthFeature[] = [
 
 const STATS: AuthStat[] = [
   { value: "Free", label: "To Start" },
-  { value: "190+", label: "Markets" },
+  { value: "PAK & USA", label: "Markets" },
   { value: "< 60s", label: "Setup" },
 ];
 
@@ -57,7 +57,7 @@ const INITIAL: FormState = {
 
 function RegisterForm() {
   const { register, isLoading, error } = useRegister();
-  const [form, setForm]               = useState<FormState>(INITIAL);
+  const [form, setForm] = useState<FormState>(INITIAL);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<FormState>>({});
 

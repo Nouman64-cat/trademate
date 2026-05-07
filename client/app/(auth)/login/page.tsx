@@ -34,23 +34,23 @@ const FEATURES: AuthFeature[] = [
 
 const STATS: AuthStat[] = [
   { value: "50+", label: "Carriers" },
-  { value: "190+", label: "Countries" },
+  { value: "PAK & USA", label: "Countries" },
   { value: "<2s", label: "Classification" },
 ];
 
 // ── Login form ────────────────────────────────────────────────────────────────
 
 function LoginForm() {
-  const searchParams   = useSearchParams();
+  const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
-  const justReset      = searchParams.get("reset") === "1";
+  const justReset = searchParams.get("reset") === "1";
 
   const { login, isLoading, error } = useLogin();
 
-  const [email, setEmail]               = useState("");
-  const [password, setPassword]         = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [fieldErrors, setFieldErrors]   = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
     const errors: Record<string, string> = {};

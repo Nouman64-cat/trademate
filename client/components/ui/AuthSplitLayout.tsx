@@ -19,7 +19,7 @@ export interface AuthSplitLayoutProps {
   headline: { top: string; bottom: string };
   tagline: string;
   features: AuthFeature[];
-  stats: AuthStat[];
+  stats?: AuthStat[];
   children: React.ReactNode;
 }
 
@@ -106,14 +106,16 @@ export function AuthSplitLayout({
             </ul>
 
             {/* Stats strip */}
-            <div className="mt-10 flex items-center gap-8 border-t border-white/[0.07] pt-6">
-              {stats.map(({ value, label }) => (
-                <div key={label}>
-                  <p className="text-lg font-bold text-white">{value}</p>
-                  <p className="text-xs text-zinc-500">{label}</p>
-                </div>
-              ))}
-            </div>
+            {stats && stats.length > 0 && (
+              <div className="mt-10 flex items-center gap-8 border-t border-white/[0.07] pt-6">
+                {stats.map(({ value, label }) => (
+                  <div key={label}>
+                    <p className="text-lg font-bold text-white">{value}</p>
+                    <p className="text-xs text-zinc-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </MouseTrackGlow>
       </div>

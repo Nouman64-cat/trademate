@@ -10,7 +10,7 @@ import { AlertMessage } from "@/components/ui/AlertMessage";
 import { AuthSplitLayout } from "@/components/ui/AuthSplitLayout";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/cn";
-import type { AuthFeature, AuthStat } from "@/components/ui/AuthSplitLayout";
+import type { AuthFeature } from "@/components/ui/AuthSplitLayout";
 
 // ── Brand panel content ───────────────────────────────────────────────────────
 
@@ -32,11 +32,7 @@ const FEATURES: AuthFeature[] = [
   },
 ];
 
-const STATS: AuthStat[] = [
-  { value: "50+", label: "Carriers" },
-  { value: "PAK & USA", label: "Countries" },
-  { value: "<2s", label: "Classification" },
-];
+
 
 // ── Login form ────────────────────────────────────────────────────────────────
 
@@ -219,7 +215,6 @@ export default function LoginPage() {
       headline={{ top: "Trade Smarter.", bottom: "Reach Further." }}
       tagline="One platform for HS classification, live freight rates, and cross-border compliance — built for teams that move the world's goods."
       features={FEATURES}
-      stats={STATS}
     >
       <Suspense>
         <LoginForm />
